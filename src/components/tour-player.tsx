@@ -1,5 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { Play } from "lucide-react";
 import { cameraWindowAt, windowOnImage } from "@/lib/photomotion/camera";
+import { HOLD_IN, HOLD_OUT, XFADE_S } from "@/lib/photomotion/constants";
 import type { PlannedClip, TourPlan } from "@/lib/photomotion/types";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +19,7 @@ type Props = {
   city?: string;
   showAddress?: boolean;
   busy?: boolean;
+  progress?: number;
   onTime?: (t: number, clip: PlannedClip | null) => void;
   onEnded?: () => void;
   onToggle?: () => void;
@@ -54,11 +57,11 @@ function drawAddress(
   ctx.fillStyle = "#7aa2c4";
   ctx.fillRect(36, h - 92, 28, 2);
   ctx.fillStyle = "#efece6";
-  ctx.font = "600 28px Fraunces, serif";
+  ctx.font = "600 28px Montserrat, sans-serif";
   ctx.fillText(address, 36, h - 54);
   if (city) {
     ctx.fillStyle = "rgba(239,236,230,0.75)";
-    ctx.font = "500 14px 'Source Sans 3', sans-serif";
+    ctx.font = "500 14px Montserrat, sans-serif";
     ctx.fillText(city, 36, h - 30);
   }
   ctx.restore();
@@ -72,6 +75,7 @@ function drawKenBurns(
   cw: number,
   ch: number,
   aspect: Aspect,
+  clear = true,
 ) {
   const win = cameraWindowAt(clip.motion, local, clip.yaw, clip.focal);
   const src = windowOnImage(win, img.naturalWidth, img.naturalHeight, clip.focal);
@@ -80,13 +84,15 @@ function drawKenBurns(
     ctx.drawImage(img, src.x, src.y, src.w, src.h, dx, dy, dw, dh);
   };
 
-  ctx.fillStyle = "#0d1013";
-  ctx.fillRect(0, 0, cw, ch);
+  if (clear) {
+    ctx.fillStyle = "#0d1013";
+    ctx.fillRect(0, 0, cw, ch);
+  }
 
   if (aspect === "9x16") {
     ctx.save();
     ctx.filter = "blur(22px)";
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = ctx.globalAlpha * 0.55;
     const coverH = cw / (16 / 9);
     draw16(cw, coverH, 0, (ch - coverH) / 2);
     ctx.restore();
@@ -119,6 +125,7 @@ export function TourPlayer({
   city,
   showAddress,
   busy,
+  progress,
   onTime,
   onEnded,
   onToggle,
@@ -132,6 +139,8 @@ export function TourPlayer({
     if (!canvas || !plan) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    void document.fonts.load("600 28px Montserrat");
+    void document.fonts.load("500 14px Montserrat");
 
     const sizeFor = () => {
       if (aspect === "9x16") return { w: 540, h: 960 };
@@ -159,7 +168,27 @@ export function TourPlayer({
       ctx.fillRect(0, 0, w, h);
       if (hit) {
         const img = images.get(hit.clip.filename);
-        if (img) drawKenBurns(ctx, img, hit.clip, hit.local, w, h, aspect);
+        if (img) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          drawKenBurns(ctx, img, hit.clip, hit.local, w, h, aspect, true);
+          const dur = hit.clip.duration_s ?? 2.5;
+          const remaining = dur * (1 - hit.local);
+          const next = plan.clips[hit.clip.index + 1];
+          if (next) {
+            const nextImg = images.get(next.filename);
+            const nextDur = next.duration_s ?? 2.5;
+            const xfade = Math.min(XFADE_S, dur * HOLD_OUT, nextDur * HOLD_IN);
+            if (nextImg && xfade > 0.02 && remaining < xfade) {
+              const mix = (1 - Math.cos(Math.PI * (1 - remaining / xfade))) / 2;
+              const nextLocal = (xfade - remaining) / nextDur;
+              ctx.save();
+              ctx.globalAlpha = mix;
+              drawKenBurns(ctx, nextImg, next, nextLocal, w, h, aspect, false);
+              ctx.restore();
+            }
+          }
+        }
         onTime?.(t, hit.clip);
         if (showAddress && address && t < 3.6) {
           const alpha = t < 0.25 ? t / 0.25 : t > 2.9 ? Math.max(0, 1 - (t - 2.9) / 0.7) : 1;
@@ -177,7 +206,7 @@ export function TourPlayer({
   return (
     <div
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-[var(--radius-md)] bg-ink shadow-[var(--shadow-md)]",
+        "relative min-w-0 overflow-hidden rounded-[var(--radius-lg)] bg-ink shadow-[var(--shadow-md)]",
         aspect === "9x16" && "mx-auto max-w-[280px]",
         aspect === "1x1" && "mx-auto max-w-[520px]",
       )}
@@ -188,9 +217,27 @@ export function TourPlayer({
         style={{ aspectRatio: aspect === "9x16" ? "9 / 16" : aspect === "1x1" ? "1 / 1" : "16 / 9" }}
         onClick={onToggle}
       />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0 grid place-items-center transition-[opacity] duration-[var(--motion-fast)] ease-[var(--ease-out)]",
+          playing || busy || !plan ? "opacity-0" : "opacity-100",
+        )}
+      >
+        <span className="play-orb">
+          <Play className="size-6" strokeWidth={2} fill="currentColor" />
+        </span>
+      </div>
+      {typeof progress === "number" ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-ink/40">
+          <div
+            className="h-full bg-lake"
+            style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
+          />
+        </div>
+      ) : null}
       {busy ? (
         <div className="absolute inset-0 grid place-items-center bg-ink/70">
-          <p className="text-sm text-muted">Planning tour…</p>
+          <p className="text-sm font-medium text-muted">Planning tour…</p>
         </div>
       ) : null}
     </div>

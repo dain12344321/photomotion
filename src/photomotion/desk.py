@@ -31,6 +31,9 @@ HTML = """<!DOCTYPE html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PhotoMotion desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #12161a; --surface: #1a2128; --elevated: #222a32;
@@ -40,14 +43,15 @@ HTML = """<!DOCTYPE html>
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; background: var(--bg); color: var(--fg);
-      font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+      font: 400 16px/1.5 Montserrat, "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased; }
     main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-    h1 { font-weight: 500; letter-spacing: -0.03em; font-size: 2rem; margin: 0.25rem 0 0; }
-    .kicker { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.18em;
+    h1 { font-weight: 600; letter-spacing: -0.03em; font-size: 2rem; margin: 0.25rem 0 0; }
+    .kicker { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.2em;
       text-transform: uppercase; color: var(--lake); }
     p { color: var(--muted); }
-    .card { background: var(--surface); border: 1px solid var(--border);
-      border-radius: 20px; padding: 1.25rem 1.35rem; margin-top: 1.25rem; }
+    .card { background: var(--surface); box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+      border-radius: 28px; padding: 1.25rem 1.35rem; margin-top: 1.25rem; }
     label { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 0.75rem; }
     input[type=text], select { width: 100%; height: 2.75rem; margin-top: 0.3rem;
       border-radius: 8px; border: 1px solid var(--border); background: var(--ink);
@@ -56,9 +60,9 @@ HTML = """<!DOCTYPE html>
       border-radius: 12px; display: grid; place-items: center; text-align: center;
       color: var(--muted); padding: 1rem; cursor: pointer; }
     .drop.over { border-color: var(--lake); background: #1c2833; }
-    button { appearance: none; border: 1.5px solid var(--accent); background: var(--accent);
+    button { appearance: none; border: 1px solid var(--accent); background: var(--accent);
       color: #fff7f5; border-radius: 999px; min-height: 2.75rem; padding: 0 1.5rem;
-      font: 600 0.8rem/1 "Segoe UI", system-ui, sans-serif; letter-spacing: 0.12em;
+      font: 600 0.8rem/1 Montserrat, "Segoe UI", system-ui, sans-serif; letter-spacing: 0.14em;
       text-transform: uppercase; cursor: pointer; }
     button.secondary { background: transparent; color: var(--fg); border-color: var(--fg); }
     button:disabled { opacity: 0.4; cursor: default; }
@@ -66,7 +70,7 @@ HTML = """<!DOCTYPE html>
     .files { font-size: 0.8rem; color: var(--subtle); margin-top: 0.5rem; }
     a { color: var(--lake); }
     pre { background: var(--ink); border-radius: 12px; padding: 1rem; overflow: auto;
-      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+      font: 12px/1.45 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
     .ok { color: var(--ok); } .err { color: var(--accent); }
     .status { font-size: 0.8rem; color: var(--muted); margin-top: 0.75rem; }
     input[type=password] { width: 100%; height: 2.75rem; margin-top: 0.3rem;

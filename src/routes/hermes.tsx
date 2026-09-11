@@ -21,7 +21,7 @@ function HermesPage() {
     <AppShell current="hermes">
       <main className="mx-auto min-w-0 max-w-3xl overflow-x-hidden px-4 py-8 sm:px-6 sm:py-10">
         <p className="label-kicker">Standalone · Hermes</p>
-        <h1 className="mt-2 font-display text-3xl font-medium tracking-tight sm:text-4xl">
+        <h1 className="mt-2 font-display text-3xl tracking-tight sm:text-4xl">
           Desktop photos in, videos out
         </h1>
         <p className="mt-3 max-w-xl text-sm text-muted">
@@ -30,8 +30,8 @@ function HermesPage() {
           offline. Imagine is opt-in via your X account at console.x.ai.
         </p>
 
-        <section className="mt-8 rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
-          <h2 className="text-lg font-medium">Download the desktop kit</h2>
+        <section className="panel mt-8">
+          <h2 className="text-lg font-semibold">Download the desktop kit</h2>
           <p className="mt-1 text-sm text-muted">
             Code, music beds, tests, and a one-command launcher. No listing
             photos. Unzip, install numpy + pillow, double-click run-desktop.
@@ -50,8 +50,8 @@ function HermesPage() {
           </div>
         </section>
 
-        <section className="mt-5 rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
-          <h2 className="text-lg font-medium">X account authorization</h2>
+        <section className="panel mt-5">
+          <h2 className="text-lg font-semibold">X account authorization</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted">
             <li>Sign in with X on this desk if you want operator identity here.</li>
             <li>
@@ -73,9 +73,9 @@ function HermesPage() {
           </p>
         </section>
 
-        <section className="mt-5 rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
-          <h2 className="text-lg font-medium">Run a property</h2>
-          <pre className="mt-3 max-w-full overflow-x-auto rounded-[var(--radius-md)] bg-ink p-4 font-mono text-xs text-fg">
+        <section className="panel mt-5">
+          <h2 className="text-lg font-semibold">Run a property</h2>
+          <pre className="mt-3 max-w-full overflow-x-auto rounded-[var(--radius-sm)] bg-ink p-4 font-mono text-xs text-fg">
             {CLI}
           </pre>
           <p className="mt-3 text-sm text-muted">
@@ -85,8 +85,8 @@ function HermesPage() {
           </p>
         </section>
 
-        <section className="mt-5 rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
-          <h2 className="text-lg font-medium">Git + Cloudflare</h2>
+        <section className="panel mt-5">
+          <h2 className="text-lg font-semibold">Git + Cloudflare</h2>
           <p className="mt-2 text-sm text-muted">
             Clone the GitHub repo for the operator desk. Camera, beats, and tour
             planning run in the browser, so Cloudflare Pages can host the UI.

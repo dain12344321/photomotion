@@ -13,7 +13,7 @@ Read `/workspace/HERMES.md` for the full contract. Do not skip it.
 
 ## Defaults
 
-- Motion: in-frame `push_in` / `orbit` / `static`. Never pan or pull-out.
+- Motion: in-frame `push_in` / `orbit` / `pull_out` / `ken_burns` / `static`. Never pan. Never I2V orbit or I2V pull-out.
 - Baths static. I2V only on `push_in`.
 - Unbranded master. `--address-card` is opt-in. No AI watermark.
 - Music: Easy Lemon. Cuts on 4-beat bars.

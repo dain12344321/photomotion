@@ -1,6 +1,6 @@
 import { ROOM_ORDER, TARGET_CLIPS, TARGET_SECONDS } from "./constants.ts";
 import { coerceMotion, defaultFocal, normalizeRoom, orbitYaw } from "./motion.ts";
-import type { ClassifiedStill, PlannedClip, TourPlan } from "./types.ts";
+import type { ClassifiedStill, MotionName, PlannedClip, TourPlan } from "./types.ts";
 
 function rank(room: string): number {
   const r = normalizeRoom(room);
@@ -51,9 +51,11 @@ export function planTour(classified: ClassifiedStill[], maxClips = TARGET_CLIPS)
     selected = [...must, ...rest].slice(0, maxClips);
   }
 
+  let prev: MotionName | undefined;
   const clips: PlannedClip[] = selected.map((c, i) => {
     const room = normalizeRoom(c.room || "interior");
-    const motion = coerceMotion(room, c.motion, i);
+    const motion = coerceMotion(room, c.motion, i, c.role, prev);
+    prev = motion;
     return {
       index: i,
       filename: c.filename,

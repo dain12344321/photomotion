@@ -14,7 +14,7 @@ from photomotion.constants import ALLOWED_MOTIONS, HARD_SPEND_CAP, KB_PLATE_H, K
 from photomotion.ingest import ingest, originals_untouched, sha256_file
 from photomotion.i2v import generate_or_fallback
 from photomotion.job import select_hero_indexes
-from photomotion.kenburns import camera_path, shaped_ease
+from photomotion.kenburns import camera_path, ramp_velocity, shaped_ease, speed_ramp
 from photomotion.motion import MotionPolicyError, assert_allowed, assign_motion, coerce_motion, motion_for_room
 from photomotion.qc import flicker_score, frame_resemblance
 from photomotion.spend import SpendBlocked, assert_live_allowed, clamp_cap, estimate_job_usd
@@ -28,28 +28,38 @@ class MotionPolicyTests(unittest.TestCase):
         self.assertEqual(motion_for_room("vanity"), "static")
 
     def test_wide_rooms_move(self):
-        self.assertEqual(motion_for_room("living"), "push_in")
-        self.assertEqual(motion_for_room("exterior_front"), "push_in")
-        self.assertEqual(motion_for_room("kitchen"), "push_in")
+        self.assertEqual(motion_for_room("living"), "orbit")
+        self.assertEqual(motion_for_room("exterior_front"), "orbit")
+        self.assertEqual(motion_for_room("kitchen"), "pull_out")
 
     def test_bans_pan_pullout(self):
-        for banned in ("pan", "pull-out", "pull_out"):
+        for banned in ("pan", "pan_left", "zoom_out"):
             with self.assertRaises(MotionPolicyError):
                 assert_allowed(banned)
 
     def test_orbit_is_in_frame_allowed(self):
         self.assertEqual(assert_allowed("orbit"), "orbit")
+        self.assertEqual(assert_allowed("pull_out"), "pull_out")
+        self.assertEqual(assert_allowed("pull-out"), "pull_out")
+        self.assertEqual(assert_allowed("ken_burns"), "ken_burns")
+        self.assertEqual(assert_allowed("kenburns"), "ken_burns")
 
     def test_bath_cannot_be_overridden_to_push(self):
         self.assertEqual(coerce_motion("bathroom", "push_in"), "static")
 
     def test_allowed_motions(self):
-        self.assertEqual(ALLOWED_MOTIONS, frozenset({"push_in", "orbit", "static"}))
+        self.assertEqual(
+            ALLOWED_MOTIONS, frozenset({"push_in", "orbit", "pull_out", "ken_burns", "static"})
+        )
 
     def test_assign_alternates_and_freezes_baths(self):
-        self.assertEqual(assign_motion("living", 0), "push_in")
-        self.assertEqual(assign_motion("living", 1), "orbit")
+        self.assertEqual(assign_motion("living", 0), "orbit")
+        self.assertEqual(assign_motion("kitchen", 0), "pull_out")
         self.assertEqual(assign_motion("bathroom", 1), "static")
+        self.assertEqual(assign_motion("bedroom", 0), "push_in")
+        self.assertEqual(assign_motion("living", 1, prev="orbit"), "pull_out")
+        self.assertEqual(assign_motion("exterior_front", 0, role="hero_open"), "push_in")
+        self.assertEqual(assign_motion("backyard", 9, role="closer"), "pull_out")
 
 
 class QcTests(unittest.TestCase):
@@ -113,9 +123,9 @@ class SpendTests(unittest.TestCase):
 class HeroSelectTests(unittest.TestCase):
     def test_picks_open_and_living(self):
         clips = [
-            {"index": 0, "room": "exterior_front", "role": "hero_open"},
-            {"index": 1, "room": "exterior_front", "role": "exterior"},
-            {"index": 2, "room": "living", "role": "hero_interior"},
+            {"index": 0, "room": "exterior_front", "role": "hero_open", "motion": "push_in"},
+            {"index": 1, "room": "exterior_front", "role": "exterior", "motion": "orbit"},
+            {"index": 2, "room": "living", "role": "hero_interior", "motion": "push_in"},
         ]
         self.assertEqual(select_hero_indexes(clips, 2), [0, 2])
 
@@ -136,12 +146,21 @@ class HeroSelectTests(unittest.TestCase):
         ]
         self.assertEqual(select_hero_indexes(clips, 10), [0, 2])
 
+    def test_i2v_only_push_in(self):
+        clips = [
+            {"index": 0, "room": "exterior_front", "motion": "push_in", "role": "hero_open"},
+            {"index": 1, "room": "living", "motion": "pull_out"},
+            {"index": 2, "room": "kitchen", "motion": "ken_burns"},
+            {"index": 3, "room": "bedroom", "motion": "push_in"},
+        ]
+        self.assertEqual(select_hero_indexes(clips, 10), [0, 3])
+
 
 class KenBurnsPathTests(unittest.TestCase):
     def test_windows_stay_in_plate(self):
-        for motion in ("push_in", "orbit", "static"):
+        for motion in ("push_in", "orbit", "pull_out", "ken_burns", "static"):
             for yaw in (1, -1):
-                wins = camera_path(motion, 48, yaw=yaw)
+                wins = camera_path(motion, 48, yaw=yaw, focal=(0.28, 0.42))
                 self.assertEqual(len(wins), 48)
                 for x, y, w, h in wins:
                     self.assertGreaterEqual(x, -1e-6)
@@ -160,6 +179,18 @@ class KenBurnsPathTests(unittest.TestCase):
         self.assertGreater(ORBIT_ZOOM, STATIC_ZOOM)
         self.assertGreaterEqual(PUSH_ZOOM, 1.15)
 
+    def test_pull_out_zooms_out(self):
+        pull = camera_path("pull_out", 60, yaw=1)
+        self.assertLess(pull[0][2], pull[-1][2])
+        push = camera_path("push_in", 60, yaw=1)
+        self.assertAlmostEqual(pull[0][2], push[-1][2], places=6)
+        self.assertAlmostEqual(pull[-1][2], push[0][2], places=6)
+
+    def test_ken_burns_drifts(self):
+        kb = camera_path("ken_burns", 60, yaw=1)
+        self.assertGreater(kb[0][2], kb[-1][2])
+        self.assertGreater(abs(kb[-1][0] - kb[0][0]), 20)
+
 
 class HoldEaseTests(unittest.TestCase):
     def test_hold_then_move(self):
@@ -169,7 +200,18 @@ class HoldEaseTests(unittest.TestCase):
         self.assertEqual(shaped_ease(HOLD_IN), 0.0)
         self.assertGreater(shaped_ease(HOLD_IN + 0.05), 0.0)
         push = camera_path("push_in", 100, yaw=1)
-        self.assertLess(abs(push[0][2] - push[8][2]), 1.0)
+        self.assertLess(abs(push[0][2] - push[2][2]), 1.0)
+
+    def test_speed_ramp_rests(self):
+        from photomotion.constants import HOLD_IN, HOLD_OUT
+
+        self.assertEqual(speed_ramp(0.0), 0.0)
+        self.assertEqual(speed_ramp(1.0), 1.0)
+        self.assertEqual(ramp_velocity(0.0), 0.0)
+        self.assertEqual(ramp_velocity(1.0), 0.0)
+        self.assertEqual(ramp_velocity(HOLD_IN), 0.0)
+        self.assertEqual(ramp_velocity(1.0 - HOLD_OUT), 0.0)
+        self.assertGreater(ramp_velocity(0.5), 0.0)
 
 
 class WanatahPlanTests(unittest.TestCase):
@@ -189,6 +231,16 @@ class WanatahPlanTests(unittest.TestCase):
         self.assertLessEqual(plan["clip_count"], 11)
         self.assertEqual(plan["clips"][0]["motion"], "push_in")
         self.assertTrue(any(c["motion"] == "orbit" for c in plan["clips"]))
+        self.assertTrue(any(c["motion"] == "pull_out" for c in plan["clips"]))
+        allowed = {"push_in", "orbit", "static", "pull_out", "ken_burns"}
+        prev = None
+        for c in plan["clips"]:
+            self.assertIn(c["motion"], allowed)
+            self.assertIn("yaw", c)
+            self.assertIn("focal", c)
+            if prev and c["motion"] != "static" and prev != "static":
+                self.assertNotEqual(c["motion"], prev)
+            prev = c["motion"]
 
 
 

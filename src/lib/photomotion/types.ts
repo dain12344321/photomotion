@@ -1,4 +1,4 @@
-export type MotionName = "push_in" | "orbit" | "static";
+export type MotionName = "push_in" | "orbit" | "pull_out" | "ken_burns" | "static";
 
 export type RoomName =
   | "exterior_front"

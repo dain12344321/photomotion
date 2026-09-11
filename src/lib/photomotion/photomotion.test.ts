@@ -3,13 +3,14 @@ import { describe, it } from "node:test";
 import {
   ALLOWED_MOTIONS,
   HOLD_IN,
+  HOLD_OUT,
   KB_PLATE_H,
   KB_PLATE_W,
   ORBIT_ZOOM,
   PUSH_ZOOM,
   STATIC_ZOOM,
 } from "./constants.ts";
-import { cameraPath, cameraWindowAt, shapedEase } from "./camera.ts";
+import { cameraPath, cameraWindowAt, rampVelocity, shapedEase, speedRamp } from "./camera.ts";
 import { detectBeatsFromPcm, snapClipDurations } from "./beats.ts";
 import { classifyItems, WANATAH_OVERRIDE } from "./classify.ts";
 import { assembleTour, classifiedFromListing } from "./tour.ts";
@@ -31,36 +32,44 @@ describe("motion policy", () => {
     assert.equal(motionForRoom("vanity"), "static");
   });
   it("moves wide rooms", () => {
-    assert.equal(motionForRoom("living"), "push_in");
-    assert.equal(motionForRoom("exterior_front"), "push_in");
-    assert.equal(motionForRoom("kitchen"), "push_in");
+    assert.equal(motionForRoom("living"), "orbit");
+    assert.equal(motionForRoom("exterior_front"), "orbit");
+    assert.equal(motionForRoom("kitchen"), "pull_out");
   });
-  it("bans pan and pull-out", () => {
-    for (const banned of ["pan", "pull-out", "pull_out"]) {
+  it("bans pan", () => {
+    for (const banned of ["pan", "pan_left", "zoom_out"]) {
       assert.throws(() => assertAllowed(banned), MotionPolicyError);
     }
   });
-  it("allows in-frame orbit", () => {
+  it("allows in-frame orbit, pull-out, ken burns", () => {
     assert.equal(assertAllowed("orbit"), "orbit");
+    assert.equal(assertAllowed("pull_out"), "pull_out");
+    assert.equal(assertAllowed("pull-out"), "pull_out");
+    assert.equal(assertAllowed("ken_burns"), "ken_burns");
+    assert.equal(assertAllowed("kenburns"), "ken_burns");
   });
   it("bath cannot be overridden to push", () => {
     assert.equal(coerceMotion("bathroom", "push_in"), "static");
   });
-  it("alternates dolly and orbit", () => {
-    assert.equal(assignMotion("living", 0), "push_in");
-    assert.equal(assignMotion("living", 1), "orbit");
+  it("assigns room-aware cinematography", () => {
+    assert.equal(assignMotion("living", 0), "orbit");
+    assert.equal(assignMotion("kitchen", 0), "pull_out");
     assert.equal(assignMotion("bathroom", 1), "static");
+    assert.equal(assignMotion("bedroom", 0), "push_in");
+    assert.equal(assignMotion("living", 1, undefined, "orbit"), "pull_out");
+    assert.equal(assignMotion("exterior_front", 0, "hero_open"), "push_in");
+    assert.equal(assignMotion("backyard", 9, "closer"), "pull_out");
   });
   it("allowed set", () => {
-    assert.deepEqual([...ALLOWED_MOTIONS].sort(), ["orbit", "push_in", "static"]);
+    assert.deepEqual([...ALLOWED_MOTIONS].sort(), ["ken_burns", "orbit", "pull_out", "push_in", "static"]);
   });
 });
 
 describe("camera path", () => {
   it("windows stay in the plate", () => {
-    for (const motion of ["push_in", "orbit", "static"] as const) {
+    for (const motion of ["push_in", "orbit", "pull_out", "ken_burns", "static"] as const) {
       for (const yaw of [1, -1]) {
-        const wins = cameraPath(motion, 48, yaw);
+        const wins = cameraPath(motion, 48, yaw, { x: 0.28, y: 0.42 });
         assert.equal(wins.length, 48);
         for (const w of wins) {
           assert.ok(w.x >= -1e-6);
@@ -81,12 +90,33 @@ describe("camera path", () => {
     assert.ok(ORBIT_ZOOM > STATIC_ZOOM);
     assert.ok(PUSH_ZOOM >= 1.15);
   });
+  it("pull_out zooms out", () => {
+    const pull = cameraPath("pull_out", 60, 1);
+    assert.ok(pull[0].w < pull[pull.length - 1].w);
+    const push = cameraPath("push_in", 60, 1);
+    assert.ok(Math.abs(pull[0].w - push[push.length - 1].w) < 1e-6);
+    assert.ok(Math.abs(pull[pull.length - 1].w - push[0].w) < 1e-6);
+  });
+  it("ken burns drifts while zooming", () => {
+    const kb = cameraPath("ken_burns", 60, 1);
+    assert.ok(kb[0].w > kb[kb.length - 1].w);
+    assert.ok(Math.abs(kb[kb.length - 1].x - kb[0].x) > 20);
+  });
   it("holds the still before the move", () => {
     assert.equal(shapedEase(0), 0);
     assert.equal(shapedEase(HOLD_IN), 0);
     assert.ok(shapedEase(HOLD_IN + 0.05) > 0);
     const push = cameraPath("push_in", 100, 1);
-    assert.ok(Math.abs(push[0].w - push[8].w) < 1);
+    assert.ok(Math.abs(push[0].w - push[2].w) < 1);
+  });
+  it("speed ramp rests at both ends", () => {
+    assert.equal(speedRamp(0), 0);
+    assert.equal(speedRamp(1), 1);
+    assert.equal(rampVelocity(0), 0);
+    assert.equal(rampVelocity(1), 0);
+    assert.equal(rampVelocity(HOLD_IN), 0);
+    assert.equal(rampVelocity(1 - HOLD_OUT), 0);
+    assert.ok(rampVelocity(0.5) > 0);
   });
   it("cameraWindowAt matches path endpoints", () => {
     const a = cameraWindowAt("push_in", 0);
@@ -164,9 +194,17 @@ describe("wanatah listing", () => {
     assert.equal(plan.clips[0].role, "hero_open");
     assert.equal(plan.clips[0].motion, "push_in");
     assert.ok(plan.clips.some((c) => c.motion === "orbit"));
-    for (const c of plan.clips) {
-      assert.ok(["push_in", "orbit", "static"].includes(c.motion));
+    assert.ok(plan.clips.some((c) => c.motion === "pull_out"));
+    const allowed = new Set(["push_in", "orbit", "static", "pull_out", "ken_burns"]);
+    for (let i = 0; i < plan.clips.length; i++) {
+      const c = plan.clips[i];
+      assert.ok(allowed.has(c.motion));
       if (c.room === "bathroom") assert.equal(c.motion, "static");
+      assert.ok(c.yaw === 1 || c.yaw === -1);
+      assert.ok(c.focal.x > 0 && c.focal.x < 1);
+      if (i > 0 && c.motion !== "static" && plan.clips[i - 1].motion !== "static") {
+        assert.notEqual(c.motion, plan.clips[i - 1].motion);
+      }
     }
     assert.equal(track.id, "wallpaper");
     assert.ok(!plan.dropped.includes("001.jpg"));

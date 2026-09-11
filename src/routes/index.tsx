@@ -215,8 +215,8 @@ function Desk() {
       <main className="mx-auto w-full min-w-0 max-w-[88rem] overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="label-kicker">Operator desk</p>
-            <h1 className="mt-1 font-display text-3xl font-medium tracking-tight sm:text-4xl">
+            <p className="label-kicker">Listing tour</p>
+            <h1 className="mt-1 font-display text-3xl tracking-tight sm:text-4xl">
               {address || "New tour"}
             </h1>
             <p className="mt-1 text-sm text-muted">{city}</p>
@@ -244,13 +244,11 @@ function Desk() {
               onTime={onTime}
               onEnded={stopPlay}
               onToggle={togglePlay}
+              progress={progress}
             />
-            <div className="mt-3 h-1 overflow-hidden rounded-full bg-elevated">
-              <div className="h-full bg-lake" style={{ width: `${progress * 100}%` }} />
-            </div>
             <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
               <Button type="button" size="sm" onClick={togglePlay} disabled={!tour || busy}>
-                {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+                {playing ? <Pause className="size-4" /> : <Play className="size-4 ml-px" />}
                 {playing ? "Pause" : "Play tour"}
               </Button>
               <Button type="button" size="sm" variant="secondary" onClick={stopPlay} disabled={!tour}>
@@ -266,17 +264,17 @@ function Desk() {
               >
                 {exporting ? "Recording…" : "Download WebM"}
               </Button>
-              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
+              <div className="segmented w-full min-w-0 sm:ml-auto sm:w-auto">
                 {(["16x9", "9x16", "1x1"] as const).map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setAspect(key)}
                     className={cn(
-                      "min-h-9 rounded-full border-[1.5px] px-4 text-xs font-semibold uppercase tracking-wider",
+                      "min-h-9 rounded-full px-4 text-xs font-semibold uppercase tracking-wider",
                       aspect === key
-                        ? "border-accent bg-accent text-accent-fg"
-                        : "border-border text-muted hover:text-fg",
+                        ? "bg-accent text-accent-fg"
+                        : "text-muted hover:text-fg",
                     )}
                   >
                     {key === "16x9" ? "16:9" : key === "9x16" ? "9:16" : "1:1"}
@@ -287,12 +285,12 @@ function Desk() {
             <p className="mt-3 text-xs text-subtle">
               {active
                 ? `${active.label} · ${active.motion.replace("_", " ")} · ${active.beats ?? 0} beats`
-                : "Hold, then dolly. Cuts land on downbeats. Space to play."}
+                : "Speed ramps. Soft dissolves on the beat. Space to play."}
             </p>
           </section>
 
           <aside className="min-w-0 space-y-4">
-            <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+            <section className="panel">
               <p className="label-kicker">Property</p>
               <div className="mt-3 grid gap-2">
                 {DEMOS.map((d) => (
@@ -300,12 +298,9 @@ function Desk() {
                     key={d.id}
                     type="button"
                     onClick={() => void buildFromListing(d.id)}
-                    className={cn(
-                      "rounded-[var(--radius-md)] border px-3 py-2 text-left text-sm",
-                      listingId === d.id ? "border-lake bg-brand-subtle" : "border-border hover:border-lake",
-                    )}
+                    className={cn("choice", listingId === d.id && "choice-on")}
                   >
-                    <span className="block font-medium text-fg">{d.address}</span>
+                    <span className="block text-sm font-semibold text-fg">{d.address}</span>
                     <span className="block text-xs text-subtle">{d.city}</span>
                   </button>
                 ))}
@@ -324,8 +319,8 @@ function Desk() {
                   if (e.dataTransfer.files.length) void handleFiles(e.dataTransfer.files);
                 }}
                 className={cn(
-                  "mt-3 flex min-h-24 w-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-dashed px-3 text-center text-sm",
-                  dragOver ? "border-lake bg-brand-subtle" : "border-border text-muted",
+                  "mt-3 flex min-h-24 w-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-dashed px-3 text-center text-sm font-medium",
+                  dragOver ? "border-lake bg-brand-subtle text-fg" : "border-border text-muted",
                 )}
               >
                 <Upload className="mb-2 size-4 text-lake" strokeWidth={1.5} />
@@ -361,7 +356,7 @@ function Desk() {
               </div>
             </section>
 
-            <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+            <section className="panel">
               <p className="label-kicker">Music bed</p>
               <ul className="mt-3 space-y-1">
                 {beds.map((b) => (
@@ -370,12 +365,12 @@ function Desk() {
                       type="button"
                       onClick={() => void changeMusic(b.id)}
                       className={cn(
-                        "w-full rounded-[var(--radius-sm)] px-2 py-2 text-left text-sm",
+                        "w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm transition-[background-color,color] duration-[var(--motion-quick)] ease-[var(--ease-out)]",
                         musicId === b.id ? "bg-elevated text-fg" : "text-muted hover:text-fg",
                       )}
                     >
-                      <span className="block">{b.title}</span>
-                      <span className="block font-mono text-[11px] text-subtle">
+                      <span className="block font-medium">{b.title}</span>
+                      <span className="block font-mono text-2xs text-subtle">
                         {b.mood} · {b.bpm} BPM
                       </span>
                     </button>
@@ -398,19 +393,26 @@ function Desk() {
                     type="button"
                     onClick={() => seekTo(c)}
                     className={cn(
-                      "w-full overflow-hidden rounded-[var(--radius-md)] border text-left",
-                      on ? "border-lake" : "border-border",
+                      "w-full overflow-hidden rounded-[var(--radius-md)] text-left shadow-[var(--shadow-border)] transition-[box-shadow] duration-[var(--motion-quick)] ease-[var(--ease-out)]",
+                      on ? "film-on" : "hover:shadow-[var(--shadow-border-hover)]",
                     )}
                   >
-                    {img ? (
-                      <img src={img.src} alt="" className="aspect-video w-full object-cover" />
-                    ) : (
-                      <div className="aspect-video bg-elevated" />
-                    )}
+                    <div className="relative">
+                      {img ? (
+                        <img src={img.src} alt="" className="aspect-video w-full object-cover" />
+                      ) : (
+                        <div className="aspect-video bg-elevated" />
+                      )}
+                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/85 to-transparent px-2 pb-1.5 pt-6">
+                        <span className="block truncate text-2xs font-semibold uppercase tracking-wider text-fg">
+                          {c.motion.replace("_", " ")}
+                        </span>
+                      </span>
+                    </div>
                     <div className="px-2 py-1.5">
-                      <p className="truncate text-xs text-fg">{c.label}</p>
-                      <p className="font-mono text-[10px] uppercase tracking-wider text-subtle">
-                        {c.motion.replace("_", " ")} · {c.beats}b
+                      <p className="truncate text-xs font-medium text-fg">{c.label}</p>
+                      <p className="font-mono text-2xs uppercase tracking-wider text-subtle">
+                        {c.beats}b
                       </p>
                     </div>
                   </button>

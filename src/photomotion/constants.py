@@ -2,11 +2,10 @@
 
 from pathlib import Path
 
-# Orbit is in-frame crop travel only — never I2V orbit (that invents edges).
-ALLOWED_MOTIONS = frozenset({"push_in", "orbit", "static"})
-BANNED_MOTIONS = frozenset(
-    {"pan", "pull-out", "pull_out", "pan_left", "pan_right", "zoom_out"}
-)
+# Orbit / pull-out / Ken Burns are in-frame crop travel only — never I2V of those
+# (I2V orbit and I2V pull-out invent edges). I2V stays push_in only.
+ALLOWED_MOTIONS = frozenset({"push_in", "orbit", "pull_out", "ken_burns", "static"})
+BANNED_MOTIONS = frozenset({"pan", "pan_left", "pan_right", "zoom_out"})
 
 STATIC_ROOMS = frozenset(
     {
@@ -25,6 +24,21 @@ STATIC_ROOMS = frozenset(
         "primary_bath",
     }
 )
+
+WIDE_ORBIT_ROOMS = frozenset(
+    {
+        "living",
+        "great_room",
+        "dining",
+        "exterior_front",
+        "exterior",
+        "exterior_deck",
+        "backyard",
+        "drone",
+    }
+)
+
+MOTION_CYCLE = ("push_in", "orbit", "pull_out", "ken_burns")
 
 ROOM_ORDER = (
     "exterior_front",
@@ -49,14 +63,21 @@ FPS = 30
 MASTER_W, MASTER_H = 1920, 1080
 VERTICAL_W, VERTICAL_H = 1080, 1920
 SQUARE = 1080
-# Visible cinema dolly / truck, still entirely inside the photograph.
-PUSH_ZOOM = 1.22
-ORBIT_ZOOM = 1.14
-ORBIT_Z0 = 1.05
-ORBIT_TRAVEL = 0.55
-STATIC_ZOOM = 1.016
-HOLD_IN = 0.12
-HOLD_OUT = 0.08
+# Visible cinema dolly / truck / reveal, still entirely inside the photograph.
+PUSH_ZOOM = 1.24
+ORBIT_ZOOM = 1.16
+ORBIT_Z0 = 1.08
+ORBIT_TRAVEL = 0.4
+ORBIT_ARC = 0.14
+KEN_BURNS_ZOOM = 1.11
+KEN_BURNS_DRIFT_X = 0.22
+KEN_BURNS_DRIFT_Y = 0.08
+STATIC_ZOOM = 1.014
+HOLD_IN = 0.055
+HOLD_OUT = 0.09
+RAMP_ACCEL = 0.22
+RAMP_DECEL = 0.28
+XFADE_S = 0.16
 KB_PLATE_W, KB_PLATE_H = 3840, 2160
 PROXY_LONG_SIDE = 1920
 KB_LONG_SIDE = 3840
@@ -73,9 +94,13 @@ XAI_BASE = "https://api.x.ai/v1"
 ROOT = Path(__file__).resolve().parents[2]
 MUSIC_DIR = ROOT / "assets" / "music"
 MUSIC_REL = Path("assets/music/easy-lemon.mp3")
+_MONTSERRAT = ROOT / "assets" / "fonts" / "Montserrat-SemiBold.ttf"
+_MONTSERRAT_MED = ROOT / "assets" / "fonts" / "Montserrat-Medium.ttf"
+_LIBERATION = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf")
 FONT_SERIF = "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf"
 FONT_SERIF_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"
-FONT_SANS = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+FONT_SANS = str(_MONTSERRAT if _MONTSERRAT.is_file() else _LIBERATION)
+FONT_SANS_MED = str(_MONTSERRAT_MED if _MONTSERRAT_MED.is_file() else FONT_SANS)
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 

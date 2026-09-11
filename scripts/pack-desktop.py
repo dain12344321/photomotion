@@ -25,6 +25,9 @@ FILES = [
     "assets/music/wallpaper.mp3",
     "assets/music/carefree.mp3",
     "assets/music/funkorama.mp3",
+    "assets/fonts/Montserrat-SemiBold.ttf",
+    "assets/fonts/Montserrat-Medium.ttf",
+    "assets/fonts/OFL.txt",
     "tests/test_photomotion.py",
     "tests/test_assemble_files.py",
 ]

@@ -14,12 +14,18 @@ from photomotion.constants import (
     HOLD_OUT,
     KB_PLATE_H,
     KB_PLATE_W,
+    KEN_BURNS_DRIFT_X,
+    KEN_BURNS_DRIFT_Y,
+    KEN_BURNS_ZOOM,
     MASTER_H,
     MASTER_W,
+    ORBIT_ARC,
     ORBIT_TRAVEL,
     ORBIT_Z0,
     ORBIT_ZOOM,
     PUSH_ZOOM,
+    RAMP_ACCEL,
+    RAMP_DECEL,
     STATIC_ZOOM,
 )
 from photomotion.motion import assert_allowed
@@ -64,20 +70,54 @@ def crop_16x9_jpeg(src: Path, dest: Path, focal: tuple[float, float] = (0.5, 0.4
     return dest
 
 
-def _ease_cosine(t: float) -> float:
-    t = min(1.0, max(0.0, t))
-    return (1.0 - math.cos(math.pi * t)) / 2.0
+def _ramp_peak() -> float:
+    cruise = 1.0 - RAMP_ACCEL - RAMP_DECEL
+    return 1.0 / (RAMP_ACCEL / 2.0 + cruise + RAMP_DECEL / 2.0)
 
 
-def shaped_ease(t: float) -> float:
-    """Hold the still, cosine-ease, hold the landing — same contract as the TS engine."""
+def speed_ramp(t: float) -> float:
+    """Trapezoidal speed ramp: hold, accel, cruise, decel, hold. v=0 at both ends."""
     t = min(1.0, max(0.0, t))
     if t <= HOLD_IN:
         return 0.0
     if t >= 1.0 - HOLD_OUT:
         return 1.0
-    u = (t - HOLD_IN) / (1.0 - HOLD_IN - HOLD_OUT)
-    return _ease_cosine(u)
+    span = 1.0 - HOLD_IN - HOLD_OUT
+    u = (t - HOLD_IN) / span
+    a, d = RAMP_ACCEL, RAMP_DECEL
+    c = 1.0 - a - d
+    v_peak = _ramp_peak()
+    if u <= a:
+        return v_peak * ((u * u) / (2.0 * a))
+    if u <= a + c:
+        return v_peak * (a / 2.0 + (u - a))
+    s = u - a - c
+    return v_peak * (a / 2.0 + c + s - (s * s) / (2.0 * d))
+
+
+def ramp_velocity(t: float) -> float:
+    """Normalized velocity of speed_ramp. Zero during holds and at both ends of the move."""
+    t = min(1.0, max(0.0, t))
+    if t <= HOLD_IN or t >= 1.0 - HOLD_OUT:
+        return 0.0
+    span = 1.0 - HOLD_IN - HOLD_OUT
+    u = (t - HOLD_IN) / span
+    a, d = RAMP_ACCEL, RAMP_DECEL
+    c = 1.0 - a - d
+    v_peak = _ramp_peak()
+    if u <= a:
+        dPdu = (v_peak * u) / a
+    elif u <= a + c:
+        dPdu = v_peak
+    else:
+        s = u - a - c
+        dPdu = v_peak * (1.0 - s / d)
+    return dPdu / span
+
+
+def shaped_ease(t: float) -> float:
+    """Public alias — same contract as the TS engine."""
+    return speed_ramp(t)
 
 
 def camera_window_at(
@@ -89,20 +129,27 @@ def camera_window_at(
     motion = assert_allowed(motion)
     fx, fy = focal
     sign = 1 if (yaw if yaw is not None else 1) >= 0 else -1
+    e = speed_ramp(t01)
     if motion == "orbit":
-        z0, z1, travel = ORBIT_Z0, ORBIT_ZOOM, ORBIT_TRAVEL
+        theta = (e - 0.5) * 2.0
+        z0, z1 = ORBIT_Z0, ORBIT_ZOOM
+        ox = theta * ORBIT_TRAVEL * sign
+        oy = math.sin(e * math.pi) * ORBIT_ARC * sign
     elif motion == "push_in":
-        z0, z1, travel = 1.0, PUSH_ZOOM, 0.0
+        z0, z1, ox, oy = 1.0, PUSH_ZOOM, 0.0, 0.0
+    elif motion == "pull_out":
+        z0, z1, ox, oy = PUSH_ZOOM, 1.0, 0.0, 0.0
+    elif motion == "ken_burns":
+        z0, z1 = 1.0, KEN_BURNS_ZOOM
+        ox = e * KEN_BURNS_DRIFT_X * sign
+        oy = e * KEN_BURNS_DRIFT_Y * sign
     else:
-        z0, z1, travel = 1.0, STATIC_ZOOM, 0.0
-    e = shaped_ease(t01)
+        z0, z1, ox, oy = 1.0, STATIC_ZOOM, 0.0, 0.0
     z = z0 + (z1 - z0) * e
     w = KB_PLATE_W / z
     h = KB_PLATE_H / z
     max_x = KB_PLATE_W - w
     max_y = KB_PLATE_H - h
-    ox = (e - 0.5) * 2.0 * travel * sign
-    oy = math.sin(e * math.pi) * travel * 0.14 * sign
     x = max_x * (fx + ox * 0.5)
     y = max_y * (fy + oy * 0.5)
     x = min(max(x, 0.0), max(0.0, max_x))

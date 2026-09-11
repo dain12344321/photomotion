@@ -16,7 +16,7 @@ from photomotion.constants import DEFAULT_SPEND_CAP, I2V_DURATION_S, I2V_LOCK, T
 from photomotion.ingest import ingest, originals_untouched
 from photomotion.i2v import generate_or_fallback
 from photomotion.kenburns import render_clip
-from photomotion.motion import assign_motion, orbit_yaw
+from photomotion.motion import assign_motion, default_focal, orbit_yaw
 from photomotion.music import music_file, pick_track, resolve_track
 from photomotion.plan import plan_tour
 from photomotion.qc import qc_i2v_against_still
@@ -94,6 +94,22 @@ def update_job(job_dir: Path, **patch) -> dict:
     return data
 
 
+def _clip_focal(clip: dict) -> tuple[float, float]:
+    f = clip.get("focal")
+    if isinstance(f, dict):
+        return float(f.get("x", 0.5)), float(f.get("y", 0.46))
+    if isinstance(f, (list, tuple)) and len(f) >= 2:
+        return float(f[0]), float(f[1])
+    return default_focal(str(clip.get("room") or ""))
+
+
+def _clip_yaw(clip: dict) -> int:
+    y = clip.get("yaw")
+    if y is None:
+        return orbit_yaw(int(clip.get("index") or 0))
+    return 1 if int(y) >= 0 else -1
+
+
 def music_path(track_id: str | None = None) -> Path:
     return music_file(track_id)
 
@@ -105,7 +121,7 @@ def select_hero_indexes(clips: list[dict], n: int) -> list[int]:
     picked: list[int] = []
 
     def eligible(clip: dict) -> bool:
-        return clip.get("motion") not in {"static", "orbit"}
+        return clip.get("motion") == "push_in"
 
     def take_one(pred) -> None:
         if len(picked) >= n:
@@ -277,7 +293,8 @@ def run_job(
             out,
             motion,
             float(clip["duration_s"]),
-            yaw=orbit_yaw(int(clip["index"])),
+            focal=_clip_focal(clip),
+            yaw=_clip_yaw(clip),
         )
         clip_out = dict(clip)
         clip_out["lane"] = "kenburns"
@@ -291,13 +308,14 @@ def run_job(
         still = Path(clip["source_path"])
         duration = float(clip["duration_s"])
 
-        def kb(_dest=out, _motion=clip["motion"], _idx=clip["index"]):
+        def kb(_dest=out, _motion=clip["motion"], _clip=clip):
             render_clip(
                 still,
                 _dest,
                 _motion,
                 duration,
-                yaw=orbit_yaw(int(_idx)),
+                focal=_clip_focal(_clip),
+                yaw=_clip_yaw(_clip),
             )
 
         sidecar = job_dir / "SIDECARS" / f"{clip['index']:02d}.json"
@@ -401,15 +419,17 @@ def restabilize_job(job_dir: Path) -> dict:
     clips = cut.get("clips") or plan.get("clips") or []
     rebuilt: list[dict] = []
     originals = job_dir / "CLIPS"
+    prev = None
     for clip in clips:
         clip = dict(clip)
         idx = int(clip["index"])
-        motion = assign_motion(clip.get("room") or "", idx)
+        motion = assign_motion(clip.get("room") or "", idx, role=clip.get("role"), prev=prev)
+        prev = motion
         clip["motion"] = motion
         still = Path(clip["source_path"])
         duration = float(clip["duration_s"])
         dest = originals / f"{idx:02d}_{motion}.mp4"
-        render_clip(still, dest, motion, duration, yaw=orbit_yaw(idx))
+        render_clip(still, dest, motion, duration, focal=_clip_focal(clip), yaw=_clip_yaw(clip))
         clip["lane"] = "kenburns"
         clip["clip_path"] = str(dest)
         clip["i2v_reason"] = "locked_to_still"

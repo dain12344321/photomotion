@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from photomotion.constants import ROOM_ORDER, TARGET_CLIPS, TARGET_SECONDS
-from photomotion.motion import coerce_motion, normalize_room
+from photomotion.motion import coerce_motion, default_focal, normalize_room, orbit_yaw
 
 
 def _rank(room: str) -> int:
@@ -52,9 +52,12 @@ def plan_tour(classified: list[dict], max_clips: int = TARGET_CLIPS) -> dict:
         selected = picked[:max_clips]
 
     clips = []
+    prev = None
     for i, c in enumerate(selected):
         room = normalize_room(c.get("room", "interior"))
-        motion = coerce_motion(room, c.get("motion"), index=i)
+        motion = coerce_motion(room, c.get("motion"), index=i, role=c.get("role"), prev=prev)
+        prev = motion
+        fx, fy = default_focal(room)
         clips.append(
             {
                 "index": i,
@@ -65,6 +68,8 @@ def plan_tour(classified: list[dict], max_clips: int = TARGET_CLIPS) -> dict:
                 "lane": "kenburns",
                 "role": c.get("role") or room,
                 "duration_s": None,  # filled after beat-snap
+                "yaw": orbit_yaw(i),
+                "focal": {"x": fx, "y": fy},
             }
         )
 

@@ -13,8 +13,8 @@ Clone the **Reel-E deliverable**, not their stack: photos in, per-still camera i
 ## Hard rules
 
 - Never mutate originals. Hash them. Work on `SOURCE/` copies.
-- Automatic motions: `push_in`, `orbit` (in-frame truck only), `static`.
-- Banned: pan, pull-out, I2V orbit (invents edges).
+- Automatic motions: `push_in`, in-frame `orbit`, in-frame `pull_out`, `ken_burns`, `static`.
+- Banned: pan, I2V orbit, I2V pull-out (invents edges). In-frame pull-out is allowed.
 - Baths / laundry / garage / mirrors → `static`.
 - No AI disclosure watermark. Ever.
 - Address overlay is a checkbox / `--address-card`. Default **off** (unbranded).
@@ -71,7 +71,8 @@ jobs/<property>/
 
 ## Motion + QC
 
-- Push-in ~20% cosine ease, orbit trucks across leftover crop while pushing.
+- Push-in / pull-out ~24% trapezoid speed ramp. Orbit is leftover-budget ellipse around the focal. Ken Burns is a slow zoom plus diagonal drift.
+- Soft dissolve (~0.16s) lives inside the hold windows so the beat cut stays put. No ffmpeg xfade.
 - Render: 4K plate → Lanczos crop per frame → 1920×1080 @ 30fps. No ffmpeg `zoompan`.
 - I2V: still is frame 1, `generate_audio: false`, do not set `aspect_ratio`.
 - QC vs still (zoom-compensated luma, 16×16 tile MAE, flicker). Fire, spinning fans, extra furniture fail. Fallback Ken Burns.

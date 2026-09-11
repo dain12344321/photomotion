@@ -3,10 +3,16 @@ import {
   HOLD_OUT,
   KB_PLATE_H,
   KB_PLATE_W,
+  KEN_BURNS_DRIFT_X,
+  KEN_BURNS_DRIFT_Y,
+  KEN_BURNS_ZOOM,
+  ORBIT_ARC,
   ORBIT_TRAVEL,
   ORBIT_Z0,
   ORBIT_ZOOM,
   PUSH_ZOOM,
+  RAMP_ACCEL,
+  RAMP_DECEL,
   STATIC_ZOOM,
 } from "./constants.ts";
 import { assertAllowed } from "./motion.ts";
@@ -21,13 +27,54 @@ export function cosineEase(t: number): number {
   return (1 - Math.cos(Math.PI * x)) / 2;
 }
 
-/** Hold the still, then cosine-ease, then hold the landing. */
-export function shapedEase(t: number): number {
+function rampPeak(): number {
+  const cruise = 1 - RAMP_ACCEL - RAMP_DECEL;
+  return 1 / (RAMP_ACCEL / 2 + cruise + RAMP_DECEL / 2);
+}
+
+/**
+ * Trapezoidal speed ramp: hold, accel, cruise, decel, hold.
+ * Velocity is 0 at both ends of the clip. Same math as the Python engine.
+ */
+export function speedRamp(t: number): number {
   const x = clamp(t, 0, 1);
   if (x <= HOLD_IN) return 0;
   if (x >= 1 - HOLD_OUT) return 1;
   const span = 1 - HOLD_IN - HOLD_OUT;
-  return cosineEase((x - HOLD_IN) / span);
+  const u = (x - HOLD_IN) / span;
+  const a = RAMP_ACCEL;
+  const d = RAMP_DECEL;
+  const c = 1 - a - d;
+  const vPeak = rampPeak();
+  if (u <= a) return vPeak * ((u * u) / (2 * a));
+  if (u <= a + c) return vPeak * (a / 2 + (u - a));
+  const s = u - a - c;
+  return vPeak * (a / 2 + c + s - (s * s) / (2 * d));
+}
+
+/** Normalized velocity of speedRamp. Zero during holds and at both ends of the move. */
+export function rampVelocity(t: number): number {
+  const x = clamp(t, 0, 1);
+  if (x <= HOLD_IN || x >= 1 - HOLD_OUT) return 0;
+  const span = 1 - HOLD_IN - HOLD_OUT;
+  const u = (x - HOLD_IN) / span;
+  const a = RAMP_ACCEL;
+  const d = RAMP_DECEL;
+  const c = 1 - a - d;
+  const vPeak = rampPeak();
+  let dPdu: number;
+  if (u <= a) dPdu = (vPeak * u) / a;
+  else if (u <= a + c) dPdu = vPeak;
+  else {
+    const s = u - a - c;
+    dPdu = vPeak * (1 - s / d);
+  }
+  return dPdu / span;
+}
+
+/** @deprecated use speedRamp — kept as the public name tests already import. */
+export function shapedEase(t: number): number {
+  return speedRamp(t);
 }
 
 export function largest16x9(width: number, height: number): CropWindow {
@@ -61,10 +108,31 @@ export function plateRect(width: number, height: number, focal: Focal = { x: 0.5
   return { x, y, w, h };
 }
 
-function motionProfile(motion: MotionName): { z0: number; z1: number; travel: number } {
-  if (motion === "orbit") return { z0: ORBIT_Z0, z1: ORBIT_ZOOM, travel: ORBIT_TRAVEL };
-  if (motion === "push_in") return { z0: 1, z1: PUSH_ZOOM, travel: 0 };
-  return { z0: 1, z1: STATIC_ZOOM, travel: 0 };
+function motionOffset(
+  motion: MotionName,
+  e: number,
+  sign: number,
+): { z0: number; z1: number; ox: number; oy: number } {
+  if (motion === "orbit") {
+    const theta = (e - 0.5) * 2;
+    return {
+      z0: ORBIT_Z0,
+      z1: ORBIT_ZOOM,
+      ox: theta * ORBIT_TRAVEL * sign,
+      oy: Math.sin(e * Math.PI) * ORBIT_ARC * sign,
+    };
+  }
+  if (motion === "push_in") return { z0: 1, z1: PUSH_ZOOM, ox: 0, oy: 0 };
+  if (motion === "pull_out") return { z0: PUSH_ZOOM, z1: 1, ox: 0, oy: 0 };
+  if (motion === "ken_burns") {
+    return {
+      z0: 1,
+      z1: KEN_BURNS_ZOOM,
+      ox: e * KEN_BURNS_DRIFT_X * sign,
+      oy: e * KEN_BURNS_DRIFT_Y * sign,
+    };
+  }
+  return { z0: 1, z1: STATIC_ZOOM, ox: 0, oy: 0 };
 }
 
 /** Crop window on the 4K plate at local progress t∈[0,1]. Always in-frame. */
@@ -75,16 +143,15 @@ export function cameraWindowAt(
   focal: Focal = { x: 0.5, y: 0.46 },
 ): CropWindow {
   const m = assertAllowed(motion);
-  const { z0, z1, travel } = motionProfile(m);
-  const e = shapedEase(t01);
+  const e = speedRamp(t01);
   const sign = yaw >= 0 ? 1 : -1;
+  const { z0, z1, ox, oy } = motionOffset(m, e, sign);
   const z = z0 + (z1 - z0) * e;
   const w = KB_PLATE_W / z;
   const h = KB_PLATE_H / z;
   const maxX = KB_PLATE_W - w;
   const maxY = KB_PLATE_H - h;
-  const ox = (e - 0.5) * 2 * travel * sign;
-  const oy = Math.sin(e * Math.PI) * travel * 0.14 * sign;
+  // leftover * (focal + offset/2). Offsets are sized so a focal in [0.28, 0.72] never clamps.
   let x = maxX * (focal.x + ox * 0.5);
   let y = maxY * (focal.y + oy * 0.5);
   x = clamp(x, 0, Math.max(0, maxX));

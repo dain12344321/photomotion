@@ -20,9 +20,11 @@
   --color-ok: #7aa671;
   --color-warn: #c43c3c;
 
-  --font-display: "Fraunces", "Times New Roman", serif;
-  --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Montserrat", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -31,15 +33,20 @@
   --radius-xl: 28px;
   --radius-full: 9999px;
 
-  --tracking-wider: 0.12em;
-  --tracking-widest: 0.18em;
+  --tracking-wider: 0.14em;
+  --tracking-widest: 0.2em;
   --tracking-display: -0.03em;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-quick: 150ms;
   --motion-fast: 250ms;
+  --motion-slow: 400ms;
+  --motion-scale-modal: 0.96;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.38);
+  --shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-border-hover: 0 0 0 1px rgba(255, 255, 255, 0.14);
+  --shadow-accent: 0 8px 24px color-mix(in oklab, var(--color-accent) 32%, transparent);
 }
 
 @layer base {
@@ -57,6 +64,8 @@
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.5;
     overflow-x: hidden;
     max-width: 100%;
   }
@@ -69,7 +78,9 @@
   h3 {
     text-wrap: balance;
     font-family: var(--font-display);
+    font-weight: 600;
     letter-spacing: var(--tracking-display);
+    line-height: 1.15;
   }
   p {
     text-wrap: pretty;
@@ -78,11 +89,24 @@
 
 @layer components {
   .label-kicker {
-    font-size: 0.6875rem;
+    font-size: var(--text-2xs);
     font-weight: 600;
     letter-spacing: var(--tracking-widest);
     text-transform: uppercase;
     color: var(--color-lake);
+  }
+  .wordmark {
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    letter-spacing: var(--tracking-widest);
+    text-transform: uppercase;
+    color: var(--color-fg);
+  }
+  .panel {
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-border);
+    padding: 1.25rem;
   }
   .field {
     display: block;
@@ -93,11 +117,52 @@
     background: var(--color-ink);
     padding-inline: 0.75rem;
     font-size: 0.875rem;
+    font-weight: 500;
     color: var(--color-fg);
     outline: none;
   }
   .field:focus {
     box-shadow: 0 0 0 2px var(--color-ring);
+  }
+  .segmented {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    border-radius: var(--radius-full);
+    background: var(--color-elevated);
+    padding: 0.25rem;
+  }
+  .play-orb {
+    display: grid;
+    width: 4rem;
+    height: 4rem;
+    place-items: center;
+    border-radius: var(--radius-full);
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+    box-shadow: var(--shadow-accent);
+  }
+  .play-orb svg {
+    margin-left: 2px;
+  }
+  .choice {
+    border-radius: var(--radius-md);
+    padding: 0.75rem 0.85rem;
+    text-align: left;
+    box-shadow: var(--shadow-border);
+    transition-property: box-shadow, background-color;
+    transition-duration: var(--motion-quick);
+    transition-timing-function: var(--ease-out);
+  }
+  .choice:hover {
+    box-shadow: var(--shadow-border-hover);
+  }
+  .choice-on {
+    background: var(--color-brand-subtle);
+    box-shadow: 0 0 0 1px var(--color-lake);
+  }
+  .film-on {
+    box-shadow: 0 0 0 1px var(--color-lake);
   }
 }
 

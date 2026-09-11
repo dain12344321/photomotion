@@ -13,10 +13,10 @@ This repo is two surfaces that share one camera / beat / classify engine:
 
 ## Motion law
 
-- Allowed automatic: `push_in`, in-frame `orbit`, `static`
-- Banned: pan, pull-out, I2V orbit
+- Allowed automatic: `push_in`, in-frame `orbit`, in-frame `pull_out`, `ken_burns`, `static`
+- Banned: pan, I2V orbit, I2V pull-out (those invent edges)
 - Baths / laundry / garage / mirrors stay `static`
-- Hold 12% of the clip, cosine-ease, hold the landing
+- Trapezoid speed ramp (hold → accel → cruise → decel → hold). Soft dissolve inside the holds.
 - Cuts snap to 4-beat bars on a dual-band onset grid
 
 Address card is opt-in. No AI watermark.
