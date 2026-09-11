@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from photomotion.constants import ALLOWED_MOTIONS, HARD_SPEND_CAP, HOLD_IN, HOLD_OUT, KB_PLATE_H, KB_PLATE_W, ORBIT_ZOOM, PUSH_ZOOM, RAMP_ACCEL, RAMP_DECEL, STATIC_ZOOM
+from photomotion.constants import ALLOWED_MOTIONS, HARD_SPEND_CAP, HOLD_OUT, KB_PLATE_H, KB_PLATE_W, ORBIT_ZOOM, PUSH_ZOOM, STATIC_ZOOM
 from photomotion.ingest import ingest, originals_untouched, sha256_file
 from photomotion.i2v import generate_or_fallback
 from photomotion.job import select_hero_indexes
@@ -180,6 +180,19 @@ class KenBurnsPathTests(unittest.TestCase):
         self.assertGreaterEqual(PUSH_ZOOM, 1.35)
         self.assertGreaterEqual(ORBIT_ZOOM, 1.28)
 
+    def test_never_trucks_vertically(self):
+        from photomotion.kenburns import camera_window_at
+
+        for motion in ("orbit", "push_in", "pull_out", "ken_burns"):
+            a = camera_window_at(motion, 0.5, yaw=1)
+            b = camera_window_at(motion, 0.5, yaw=-1)
+            self.assertEqual(a[1], b[1])
+            self.assertEqual(a[3], b[3])
+        left = camera_window_at("orbit", 0.0, yaw=1)
+        right = camera_window_at("orbit", 0.0, yaw=-1)
+        self.assertGreater(abs(left[0] - right[0]), 40)
+        self.assertEqual(left[1], right[1])
+
     def test_nine_sixteen_is_full_bleed_slice(self):
         from photomotion.kenburns import camera_source_window
 
@@ -190,25 +203,24 @@ class KenBurnsPathTests(unittest.TestCase):
         self.assertAlmostEqual(w / h, 9 / 16, places=2)
         self.assertGreaterEqual(y, -1e-6)
         self.assertLessEqual(y + h, img_h + 1e-6)
-        self.assertGreater(abs(end[0] - start[0]), 40)
-        self.assertLess(abs(end[0] - start[0]), start[2] * 0.22)
+        self.assertGreater(abs(end[0] - start[0]), start[2] * 0.12)
+        self.assertLess(abs(end[0] - start[0]), start[2] * 0.42)
         self.assertGreater(h, img_h * 0.7)
 
     def test_speed_ramp_into_downbeat(self):
-        self.assertGreater(RAMP_DECEL, RAMP_ACCEL)
-        self.assertGreater(RAMP_ACCEL + RAMP_DECEL, 0.6)
         self.assertEqual(speed_ramp(0.0), 0.0)
         self.assertEqual(speed_ramp(1.0), 1.0)
-        self.assertEqual(ramp_velocity(0.0), 0.0)
+        self.assertAlmostEqual(ramp_velocity(0.0), 0.0, places=6)
         self.assertEqual(ramp_velocity(1.0), 0.0)
-        self.assertEqual(ramp_velocity(HOLD_IN), 0.0)
         self.assertEqual(ramp_velocity(1.0 - HOLD_OUT), 0.0)
-        v_rise = ramp_velocity(HOLD_IN + 0.12)
-        v_mid = ramp_velocity(0.4)
-        v_fall = ramp_velocity(0.75)
+        v_rise = ramp_velocity(0.12)
+        v_mid = ramp_velocity(0.5)
+        v_fall = ramp_velocity(0.8)
         self.assertGreater(v_mid, v_rise)
         self.assertGreater(v_mid, v_fall)
         self.assertGreater(v_fall, 0.0)
+        self.assertGreater(speed_ramp(0.5), 0.45)
+        self.assertLess(speed_ramp(0.5), 0.55)
 
     def test_pull_out_zooms_out(self):
         pull = camera_path("pull_out", 60, yaw=1)
@@ -225,22 +237,16 @@ class KenBurnsPathTests(unittest.TestCase):
 
 class HoldEaseTests(unittest.TestCase):
     def test_hold_then_move(self):
-        from photomotion.constants import HOLD_IN
-
         self.assertEqual(shaped_ease(0.0), 0.0)
-        self.assertEqual(shaped_ease(HOLD_IN), 0.0)
-        self.assertGreater(shaped_ease(HOLD_IN + 0.05), 0.0)
+        self.assertGreater(shaped_ease(0.08), 0.01)
         push = camera_path("push_in", 100, yaw=1)
-        self.assertLess(abs(push[0][2] - push[2][2]), 1.0)
+        self.assertGreater(abs(push[0][2] - push[4][2]), 1.0)
 
     def test_speed_ramp_rests(self):
-        from photomotion.constants import HOLD_IN, HOLD_OUT
-
         self.assertEqual(speed_ramp(0.0), 0.0)
         self.assertEqual(speed_ramp(1.0), 1.0)
-        self.assertEqual(ramp_velocity(0.0), 0.0)
+        self.assertAlmostEqual(ramp_velocity(0.0), 0.0, places=6)
         self.assertEqual(ramp_velocity(1.0), 0.0)
-        self.assertEqual(ramp_velocity(HOLD_IN), 0.0)
         self.assertEqual(ramp_velocity(1.0 - HOLD_OUT), 0.0)
         self.assertGreater(ramp_velocity(0.5), 0.0)
 

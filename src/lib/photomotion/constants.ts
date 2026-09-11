@@ -61,35 +61,31 @@ export const SQUARE = 1080;
 
 /** Visible cinema dolly / truck / reveal, still entirely inside the still. */
 export const PUSH_ZOOM = 1.42;
-export const PUSH_DRIFT_X = 0.16;
-export const PUSH_DRIFT_Y = -0.09;
+export const PUSH_DRIFT_X = 0.24;
+export const PUSH_DRIFT_Y = 0;
 export const ORBIT_ZOOM = 1.34;
 export const ORBIT_Z0 = 1.16;
-export const ORBIT_TRAVEL = 0.58;
-export const ORBIT_ARC = 0.24;
+export const ORBIT_TRAVEL = 0.64;
+export const ORBIT_ARC = 0;
 export const KEN_BURNS_ZOOM = 1.26;
 export const KEN_BURNS_DRIFT_X = 0.46;
-export const KEN_BURNS_DRIFT_Y = 0.18;
-export const STATIC_ZOOM = 1.02;
-/** Short settle, then move — motion in the first half-second. */
-export const HOLD_IN = 0.04;
-/** Decel into the downbeat so the cut is the accent. */
-export const HOLD_OUT = 0.10;
-/** Trapezoid speed-ramp as a fraction of the moving window. v=0 at both ends. */
-export const RAMP_ACCEL = 0.28;
-export const RAMP_DECEL = 0.42;
+export const KEN_BURNS_DRIFT_Y = 0;
+export const STATIC_ZOOM = 1.05;
+/** No freeze at the head — the operator is already rolling. */
+export const HOLD_IN = 0;
+/** A few frames parked on the outgoing so the mix isn't a smear. */
+export const HOLD_OUT = 0.03;
 /**
- * Optical mix centered on the beat. Long enough to feel organic,
- * short enough that the downbeat is still the accent.
+ * Optical mix centered on the beat. Short — the new shot's takeoff is the accent.
  */
-export const XFADE_S = 0.12;
+export const XFADE_S = 0.09;
 /** Lateral travel as a fraction of the *visible frame*, not leftover plate. */
-export const FRAME_TRAVEL_X = 0.2;
-export const FRAME_TRAVEL_Y = 0.12;
-export const FRAME_TRAVEL_X_9X16 = 0.11;
-export const FRAME_TRAVEL_Y_9X16 = 0.08;
-export const FRAME_TRAVEL_X_1X1 = 0.14;
-export const FRAME_TRAVEL_Y_1X1 = 0.1;
+export const FRAME_TRAVEL_X = 0.24;
+export const FRAME_TRAVEL_Y = 0;
+export const FRAME_TRAVEL_X_9X16 = 0.19;
+export const FRAME_TRAVEL_Y_9X16 = 0;
+export const FRAME_TRAVEL_X_1X1 = 0.21;
+export const FRAME_TRAVEL_Y_1X1 = 0;
 export const KB_PLATE_W = 3840;
 export const KB_PLATE_H = 2160;
 

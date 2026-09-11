@@ -16,7 +16,7 @@ This repo is two surfaces that share one camera / beat / classify engine:
 - Allowed automatic: `push_in`, in-frame `orbit`, in-frame `pull_out`, `ken_burns`, `static`
 - Banned: pan, I2V orbit, I2V pull-out (those invent edges)
 - Baths / laundry / garage / mirrors stay `static`
-- Trapezoid speed ramp (hold → accel → cruise → decel → hold). Soft dissolve inside the holds.
+- Sine ease-in-out (already rolling, no cruise). Short mix on the downbeat. No vertical crane — push, pull, orbit, Ken Burns stay level.
 - Cuts snap to 4-beat bars on a dual-band onset grid
 
 Address card is opt-in. No AI watermark.

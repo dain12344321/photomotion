@@ -71,8 +71,8 @@ jobs/<property>/
 
 ## Motion + QC
 
-- Push-in / pull-out ~24% trapezoid speed ramp. Orbit is leftover-budget ellipse around the focal. Ken Burns is a slow zoom plus diagonal drift.
-- Soft dissolve (~0.16s) lives inside the hold windows so the beat cut stays put. No ffmpeg xfade.
+- Push-in / pull-out / orbit use a sine ease-in-out (no cruise, no hold-in). Orbit is a frame-relative truck around the focal — no vertical crane. Ken Burns is a slow zoom plus lateral drift.
+- Soft mix (~90ms) centered on the beat. Incoming shot is already rolling. No ffmpeg xfade.
 - Render: 4K plate → Lanczos crop per frame → 1920×1080 @ 30fps. No ffmpeg `zoompan`.
 - I2V: still is frame 1, `generate_audio: false`, do not set `aspect_ratio`.
 - QC vs still (zoom-compensated luma, 16×16 tile MAE, flicker). Fire, spinning fans, extra furniture fail. Fallback Ken Burns.

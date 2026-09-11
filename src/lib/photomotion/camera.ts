@@ -5,7 +5,6 @@ import {
   FRAME_TRAVEL_Y,
   FRAME_TRAVEL_Y_1X1,
   FRAME_TRAVEL_Y_9X16,
-  HOLD_IN,
   HOLD_OUT,
   KB_PLATE_H,
   KB_PLATE_W,
@@ -19,8 +18,6 @@ import {
   PUSH_DRIFT_X,
   PUSH_DRIFT_Y,
   PUSH_ZOOM,
-  RAMP_ACCEL,
-  RAMP_DECEL,
   STATIC_ZOOM,
 } from "./constants.ts";
 import { assertAllowed } from "./motion.ts";
@@ -41,49 +38,23 @@ export function aspectRatio(aspect: FrameAspect): number {
   return 16 / 9;
 }
 
-function rampPeak(): number {
-  const cruise = 1 - RAMP_ACCEL - RAMP_DECEL;
-  return 1 / (RAMP_ACCEL / 2 + cruise + RAMP_DECEL / 2);
-}
-
 /**
- * Trapezoidal speed ramp: hold, accel, cruise, decel, hold.
- * Velocity is 0 at both ends of the clip. Same math as the Python engine.
+ * Operator ease: sine in-out, no cruise, no hold-in.
+ * Tiny hold-out so the outgoing pose is parked for the mix.
  */
 export function speedRamp(t: number): number {
   const x = clamp(t, 0, 1);
-  if (x <= HOLD_IN) return 0;
   if (x >= 1 - HOLD_OUT) return 1;
-  const span = 1 - HOLD_IN - HOLD_OUT;
-  const u = (x - HOLD_IN) / span;
-  const a = RAMP_ACCEL;
-  const d = RAMP_DECEL;
-  const c = 1 - a - d;
-  const vPeak = rampPeak();
-  if (u <= a) return vPeak * ((u * u) / (2 * a));
-  if (u <= a + c) return vPeak * (a / 2 + (u - a));
-  const s = u - a - c;
-  return vPeak * (a / 2 + c + s - (s * s) / (2 * d));
+  return cosineEase(x / (1 - HOLD_OUT));
 }
 
-/** Normalized velocity of speedRamp. Zero during holds and at both ends of the move. */
+/** Normalized velocity of speedRamp. Zero at the cut; walking through the middle. */
 export function rampVelocity(t: number): number {
   const x = clamp(t, 0, 1);
-  if (x <= HOLD_IN || x >= 1 - HOLD_OUT) return 0;
-  const span = 1 - HOLD_IN - HOLD_OUT;
-  const u = (x - HOLD_IN) / span;
-  const a = RAMP_ACCEL;
-  const d = RAMP_DECEL;
-  const c = 1 - a - d;
-  const vPeak = rampPeak();
-  let dPdu: number;
-  if (u <= a) dPdu = (vPeak * u) / a;
-  else if (u <= a + c) dPdu = vPeak;
-  else {
-    const s = u - a - c;
-    dPdu = vPeak * (1 - s / d);
-  }
-  return dPdu / span;
+  if (x >= 1 - HOLD_OUT) return 0;
+  const span = 1 - HOLD_OUT;
+  const u = x / span;
+  return ((Math.PI / 2) * Math.sin(Math.PI * u)) / span;
 }
 
 /** @deprecated use speedRamp — kept as the public name tests already import. */
@@ -214,10 +185,12 @@ export function cameraWindowAt(
   focal: Focal = { x: 0.5, y: 0.46 },
 ): CropWindow {
   const m = assertAllowed(motion);
-  const e = speedRamp(t01);
+  const eMove = speedRamp(t01);
   const sign = yaw >= 0 ? 1 : -1;
-  const { z0, z1, ox, oy } = motionOffset(m, e, sign);
-  return applyWindow(z0, z1, ox, oy, e, focal, KB_PLATE_W, KB_PLATE_H, 16 / 9);
+  const { z0, z1, ox, oy } = motionOffset(m, eMove, sign);
+  // Orbit zoom breathes on a slower cosine so truck and dolly don't lock as a 2D slider.
+  const eZoom = m === "orbit" ? cosineEase(t01) : eMove;
+  return applyWindow(z0, z1, ox, oy, eZoom, focal, KB_PLATE_W, KB_PLATE_H, 16 / 9);
 }
 
 /**
@@ -235,10 +208,11 @@ export function cameraSourceWindow(
   aspect: FrameAspect,
 ): CropWindow {
   const m = assertAllowed(motion);
-  const e = speedRamp(t01);
+  const eMove = speedRamp(t01);
   const sign = yaw >= 0 ? 1 : -1;
-  const { z0, z1, ox, oy } = motionOffset(m, e, sign);
-  return applyWindow(z0, z1, ox, oy, e, focal, imgW, imgH, aspectRatio(aspect));
+  const { z0, z1, ox, oy } = motionOffset(m, eMove, sign);
+  const eZoom = m === "orbit" ? cosineEase(t01) : eMove;
+  return applyWindow(z0, z1, ox, oy, eZoom, focal, imgW, imgH, aspectRatio(aspect));
 }
 
 export function cameraPath(

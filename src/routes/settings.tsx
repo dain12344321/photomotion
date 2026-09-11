@@ -99,7 +99,7 @@ function SettingsPage() {
             <li>Automatic: push-in, orbit, pull-out, Ken Burns, static.</li>
             <li>Banned: pan, I2V orbit, I2V pull-out.</li>
             <li>Baths, laundry, garage, mirrors stay static.</li>
-            <li>Trapezoid speed ramp. Soft dissolve inside the holds.</li>
+            <li>No vertical crane — push, pull, orbit, Ken Burns stay level.</li>
             <li>Cuts snap to 4-beat bars. Dual-band onset lock.</li>
           </ul>
         </section>

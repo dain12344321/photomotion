@@ -2,14 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ALLOWED_MOTIONS,
-  HOLD_IN,
   HOLD_OUT,
   KB_PLATE_H,
   KB_PLATE_W,
   ORBIT_ZOOM,
   PUSH_ZOOM,
-  RAMP_ACCEL,
-  RAMP_DECEL,
   STATIC_ZOOM,
 } from "./constants.ts";
 import { cameraPath, cameraSourceWindow, cameraWindowAt, rampVelocity, shapedEase, speedRamp } from "./camera.ts";
@@ -105,31 +102,22 @@ describe("camera path", () => {
     assert.ok(kb[0].w > kb[kb.length - 1].w);
     assert.ok(Math.abs(kb[kb.length - 1].x - kb[0].x) > 20);
   });
-  it("holds the still before the move", () => {
+  it("moves from the first frames and settles into the cut", () => {
     assert.equal(shapedEase(0), 0);
-    assert.equal(shapedEase(HOLD_IN), 0);
-    assert.ok(shapedEase(HOLD_IN + 0.05) > 0);
+    assert.ok(shapedEase(0.08) > 0.01);
     const push = cameraPath("push_in", 100, 1);
-    assert.ok(Math.abs(push[0].w - push[2].w) < 1);
+    assert.ok(Math.abs(push[0].w - push[4].w) > 1);
   });
-  it("speed ramp rests at both ends", () => {
+  it("speed ramp is a walking sine, not a slider", () => {
     assert.equal(speedRamp(0), 0);
     assert.equal(speedRamp(1), 1);
-    assert.equal(rampVelocity(0), 0);
+    assert.ok(Math.abs(rampVelocity(0)) < 1e-6);
     assert.equal(rampVelocity(1), 0);
-    assert.equal(rampVelocity(HOLD_IN), 0);
     assert.equal(rampVelocity(1 - HOLD_OUT), 0);
-    assert.ok(rampVelocity(0.5) > 0);
-  });
-  it("ramps more than it cruises and decelerates into the cut", () => {
-    assert.ok(RAMP_DECEL > RAMP_ACCEL);
-    assert.ok(RAMP_ACCEL + RAMP_DECEL > 0.6);
-    const vRise = rampVelocity(HOLD_IN + 0.12);
-    const vMid = rampVelocity(0.4);
-    const vFall = rampVelocity(0.75);
-    assert.ok(vMid > vRise);
-    assert.ok(vMid > vFall);
-    assert.ok(vFall > 0);
+    assert.ok(rampVelocity(0.5) > rampVelocity(0.12));
+    assert.ok(rampVelocity(0.5) > rampVelocity(0.8));
+    // No cruise: velocity falls after mid-clip.
+    assert.ok(speedRamp(0.5) > 0.45 && speedRamp(0.5) < 0.55);
   });
   it("cameraWindowAt matches path endpoints", () => {
     const a = cameraWindowAt("push_in", 0);
@@ -137,6 +125,18 @@ describe("camera path", () => {
     const path = cameraPath("push_in", 2);
     assert.equal(path[0].w, a.w);
     assert.equal(path[1].w, b.w);
+  });
+  it("never trucks vertically — yaw flips x, y stays put", () => {
+    for (const motion of ["orbit", "push_in", "pull_out", "ken_burns"] as const) {
+      const a = cameraWindowAt(motion, 0.5, 1);
+      const b = cameraWindowAt(motion, 0.5, -1);
+      assert.equal(a.y, b.y);
+      assert.equal(a.h, b.h);
+    }
+    const orbitL = cameraWindowAt("orbit", 0, 1);
+    const orbitR = cameraWindowAt("orbit", 0, -1);
+    assert.ok(Math.abs(orbitL.x - orbitR.x) > 40);
+    assert.equal(orbitL.y, orbitR.y);
   });
   it("9:16 is a real vertical slice, not letterboxed 16:9", () => {
     const imgW = 4000;
@@ -151,9 +151,10 @@ describe("camera path", () => {
     assert.ok(start.y + start.h <= imgH + 1e-6);
     assert.ok(start.x >= -1e-6);
     assert.ok(start.x + start.w <= imgW + 1e-6);
-    // Landscape leftover is NOT a whip-pan: travel stays a slice of the frame.
-    assert.ok(Math.abs(end.x - start.x) > 40);
-    assert.ok(Math.abs(end.x - start.x) < start.w * 0.22);
+    // Visible glide, not a leftover-width whip.
+    assert.ok(Math.abs(end.x - start.x) > start.w * 0.12);
+    assert.ok(Math.abs(end.x - start.x) < start.w * 0.42);
+    assert.ok(Math.abs(mid.x - start.x) > 15);
     // At the wide end it uses nearly the full still height.
     assert.ok(start.h > imgH * 0.7);
     const wide = cameraSourceWindow("push_in", 0, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "16x9");

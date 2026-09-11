@@ -16,7 +16,6 @@ from photomotion.constants import (
     FRAME_TRAVEL_Y,
     FRAME_TRAVEL_Y_1X1,
     FRAME_TRAVEL_Y_9X16,
-    HOLD_IN,
     HOLD_OUT,
     KB_PLATE_H,
     KB_PLATE_W,
@@ -32,8 +31,6 @@ from photomotion.constants import (
     PUSH_DRIFT_X,
     PUSH_DRIFT_Y,
     PUSH_ZOOM,
-    RAMP_ACCEL,
-    RAMP_DECEL,
     STATIC_ZOOM,
 )
 from photomotion.motion import assert_allowed
@@ -85,49 +82,27 @@ def crop_16x9_jpeg(src: Path, dest: Path, focal: tuple[float, float] = (0.5, 0.4
     return dest
 
 
-def _ramp_peak() -> float:
-    cruise = 1.0 - RAMP_ACCEL - RAMP_DECEL
-    return 1.0 / (RAMP_ACCEL / 2.0 + cruise + RAMP_DECEL / 2.0)
+def _cosine_ease(t: float) -> float:
+    x = min(1.0, max(0.0, t))
+    return (1.0 - math.cos(math.pi * x)) / 2.0
 
 
 def speed_ramp(t: float) -> float:
-    """Trapezoidal speed ramp: hold, accel, cruise, decel, hold. v=0 at both ends."""
+    """Sine ease-in-out, no cruise, no hold-in. Tiny hold-out for the mix."""
     t = min(1.0, max(0.0, t))
-    if t <= HOLD_IN:
-        return 0.0
     if t >= 1.0 - HOLD_OUT:
         return 1.0
-    span = 1.0 - HOLD_IN - HOLD_OUT
-    u = (t - HOLD_IN) / span
-    a, d = RAMP_ACCEL, RAMP_DECEL
-    c = 1.0 - a - d
-    v_peak = _ramp_peak()
-    if u <= a:
-        return v_peak * ((u * u) / (2.0 * a))
-    if u <= a + c:
-        return v_peak * (a / 2.0 + (u - a))
-    s = u - a - c
-    return v_peak * (a / 2.0 + c + s - (s * s) / (2.0 * d))
+    return _cosine_ease(t / (1.0 - HOLD_OUT))
 
 
 def ramp_velocity(t: float) -> float:
-    """Normalized velocity of speed_ramp. Zero during holds and at both ends of the move."""
+    """Normalized velocity of speed_ramp. Zero at the cut; walking through the middle."""
     t = min(1.0, max(0.0, t))
-    if t <= HOLD_IN or t >= 1.0 - HOLD_OUT:
+    if t >= 1.0 - HOLD_OUT:
         return 0.0
-    span = 1.0 - HOLD_IN - HOLD_OUT
-    u = (t - HOLD_IN) / span
-    a, d = RAMP_ACCEL, RAMP_DECEL
-    c = 1.0 - a - d
-    v_peak = _ramp_peak()
-    if u <= a:
-        dPdu = (v_peak * u) / a
-    elif u <= a + c:
-        dPdu = v_peak
-    else:
-        s = u - a - c
-        dPdu = v_peak * (1.0 - s / d)
-    return dPdu / span
+    span = 1.0 - HOLD_OUT
+    u = t / span
+    return ((math.pi / 2.0) * math.sin(math.pi * u)) / span
 
 
 def shaped_ease(t: float) -> float:
@@ -190,9 +165,10 @@ def camera_window_at(
 ) -> tuple[float, float, float, float]:
     motion = assert_allowed(motion)
     sign = 1 if (yaw if yaw is not None else 1) >= 0 else -1
-    e = speed_ramp(t01)
-    z0, z1, ox, oy = _motion_offset(motion, e, sign)
-    return _apply_window(z0, z1, ox, oy, e, focal, float(KB_PLATE_W), float(KB_PLATE_H), 16 / 9)
+    e_move = speed_ramp(t01)
+    z0, z1, ox, oy = _motion_offset(motion, e_move, sign)
+    e_zoom = _cosine_ease(t01) if motion == "orbit" else e_move
+    return _apply_window(z0, z1, ox, oy, e_zoom, focal, float(KB_PLATE_W), float(KB_PLATE_H), 16 / 9)
 
 
 def camera_source_window(
@@ -208,9 +184,10 @@ def camera_source_window(
     motion = assert_allowed(motion)
     ratio = 9 / 16 if aspect == "9x16" else 1.0 if aspect == "1x1" else 16 / 9
     sign = 1 if (yaw if yaw is not None else 1) >= 0 else -1
-    e = speed_ramp(t01)
-    z0, z1, ox, oy = _motion_offset(motion, e, sign)
-    return _apply_window(z0, z1, ox, oy, e, focal, float(img_w), float(img_h), ratio)
+    e_move = speed_ramp(t01)
+    z0, z1, ox, oy = _motion_offset(motion, e_move, sign)
+    e_zoom = _cosine_ease(t01) if motion == "orbit" else e_move
+    return _apply_window(z0, z1, ox, oy, e_zoom, focal, float(img_w), float(img_h), ratio)
 
 
 def camera_path(

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { Play } from "lucide-react";
 import { cameraSourceWindow, cosineEase } from "@/lib/photomotion/camera";
-import { HOLD_IN, HOLD_OUT, XFADE_S } from "@/lib/photomotion/constants";
+import { XFADE_S } from "@/lib/photomotion/constants";
 import type { FrameAspect, PlannedClip, TourPlan } from "@/lib/photomotion/types";
 import { cn } from "@/lib/utils";
 
@@ -162,8 +162,7 @@ export function TourPlayer({
           const prevImg = prev ? images.get(prev.filename) : undefined;
           const nextImg = next ? images.get(next.filename) : undefined;
           const prevDur = prev?.duration_s ?? 2.5;
-          const nextDur = next?.duration_s ?? 2.5;
-          const xfade = Math.min(XFADE_S, dur * HOLD_OUT, (prev ? prevDur : dur) * HOLD_OUT, nextDur * HOLD_IN * 2);
+          const xfade = Math.min(XFADE_S, dur * 0.08, (prev ? prevDur : dur) * 0.08);
           const half = xfade / 2;
           const nearStart = Boolean(prev && prevImg && elapsed < half && xfade > 0.02);
           const nearEnd = Boolean(next && nextImg && remaining < half && xfade > 0.02);

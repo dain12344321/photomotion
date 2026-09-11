@@ -285,7 +285,7 @@ function Desk() {
             <p className="mt-3 text-xs text-subtle">
               {active
                 ? `${active.label} · ${active.motion.replace("_", " ")} · ${active.beats ?? 0} beats`
-                : "Speed ramps. Soft dissolves on the beat. Space to play."}
+                : "Walking camera. Mix on the downbeat. Space to play."}
             </p>
           </section>
 
