@@ -8,6 +8,8 @@ import {
   KB_PLATE_W,
   ORBIT_ZOOM,
   PUSH_ZOOM,
+  RAMP_ACCEL,
+  RAMP_DECEL,
   STATIC_ZOOM,
 } from "./constants.ts";
 import { cameraPath, cameraSourceWindow, cameraWindowAt, rampVelocity, shapedEase, speedRamp } from "./camera.ts";
@@ -119,6 +121,16 @@ describe("camera path", () => {
     assert.equal(rampVelocity(1 - HOLD_OUT), 0);
     assert.ok(rampVelocity(0.5) > 0);
   });
+  it("ramps more than it cruises and decelerates into the cut", () => {
+    assert.ok(RAMP_DECEL > RAMP_ACCEL);
+    assert.ok(RAMP_ACCEL + RAMP_DECEL > 0.6);
+    const vRise = rampVelocity(HOLD_IN + 0.12);
+    const vMid = rampVelocity(0.4);
+    const vFall = rampVelocity(0.75);
+    assert.ok(vMid > vRise);
+    assert.ok(vMid > vFall);
+    assert.ok(vFall > 0);
+  });
   it("cameraWindowAt matches path endpoints", () => {
     const a = cameraWindowAt("push_in", 0);
     const b = cameraWindowAt("push_in", 1);
@@ -139,8 +151,9 @@ describe("camera path", () => {
     assert.ok(start.y + start.h <= imgH + 1e-6);
     assert.ok(start.x >= -1e-6);
     assert.ok(start.x + start.w <= imgW + 1e-6);
-    // Landscape leftover: the 9:16 slice trucks across the still.
-    assert.ok(Math.abs(end.x - start.x) > 200);
+    // Landscape leftover is NOT a whip-pan: travel stays a slice of the frame.
+    assert.ok(Math.abs(end.x - start.x) > 40);
+    assert.ok(Math.abs(end.x - start.x) < start.w * 0.22);
     // At the wide end it uses nearly the full still height.
     assert.ok(start.h > imgH * 0.7);
     const wide = cameraSourceWindow("push_in", 0, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "16x9");

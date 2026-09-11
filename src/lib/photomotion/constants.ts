@@ -72,17 +72,24 @@ export const KEN_BURNS_DRIFT_X = 0.46;
 export const KEN_BURNS_DRIFT_Y = 0.18;
 export const STATIC_ZOOM = 1.02;
 /** Short settle, then move — motion in the first half-second. */
-export const HOLD_IN = 0.025;
+export const HOLD_IN = 0.04;
 /** Decel into the downbeat so the cut is the accent. */
-export const HOLD_OUT = 0.07;
+export const HOLD_OUT = 0.10;
 /** Trapezoid speed-ramp as a fraction of the moving window. v=0 at both ends. */
-export const RAMP_ACCEL = 0.16;
-export const RAMP_DECEL = 0.34;
+export const RAMP_ACCEL = 0.28;
+export const RAMP_DECEL = 0.42;
 /**
- * Optical mix centered on the beat (~2 frames either side).
- * Hard content change lands on the downbeat — not a 160ms pre-roll dissolve.
+ * Optical mix centered on the beat. Long enough to feel organic,
+ * short enough that the downbeat is still the accent.
  */
-export const XFADE_S = 0.067;
+export const XFADE_S = 0.12;
+/** Lateral travel as a fraction of the *visible frame*, not leftover plate. */
+export const FRAME_TRAVEL_X = 0.2;
+export const FRAME_TRAVEL_Y = 0.12;
+export const FRAME_TRAVEL_X_9X16 = 0.11;
+export const FRAME_TRAVEL_Y_9X16 = 0.08;
+export const FRAME_TRAVEL_X_1X1 = 0.14;
+export const FRAME_TRAVEL_Y_1X1 = 0.1;
 export const KB_PLATE_W = 3840;
 export const KB_PLATE_H = 2160;
 

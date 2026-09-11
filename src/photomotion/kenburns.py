@@ -10,6 +10,12 @@ from PIL import Image
 
 from photomotion.constants import (
     FPS,
+    FRAME_TRAVEL_X,
+    FRAME_TRAVEL_X_1X1,
+    FRAME_TRAVEL_X_9X16,
+    FRAME_TRAVEL_Y,
+    FRAME_TRAVEL_Y_1X1,
+    FRAME_TRAVEL_Y_9X16,
     HOLD_IN,
     HOLD_OUT,
     KB_PLATE_H,
@@ -142,6 +148,14 @@ def _motion_offset(motion: str, e: float, sign: int) -> tuple[float, float, floa
     return 1.0, STATIC_ZOOM, 0.0, 0.0
 
 
+def _travel_for_ratio(ratio: float) -> tuple[float, float]:
+    if ratio <= 9 / 16 + 0.02:
+        return FRAME_TRAVEL_X_9X16, FRAME_TRAVEL_Y_9X16
+    if ratio <= 1.05:
+        return FRAME_TRAVEL_X_1X1, FRAME_TRAVEL_Y_1X1
+    return FRAME_TRAVEL_X, FRAME_TRAVEL_Y
+
+
 def _apply_window(
     z0: float,
     z1: float,
@@ -160,8 +174,11 @@ def _apply_window(
     h = base_h / z
     max_x = max(0.0, plate_w - w)
     max_y = max(0.0, plate_h - h)
-    x = min(max(max_x * min(max(fx + ox, 0.0), 1.0), 0.0), max_x)
-    y = min(max(max_y * min(max(fy + oy, 0.0), 1.0), 0.0), max_y)
+    tx, ty = _travel_for_ratio(ratio)
+    home_x = max_x * min(max(fx, 0.0), 1.0)
+    home_y = max_y * min(max(fy, 0.0), 1.0)
+    x = min(max(home_x + ox * w * tx, 0.0), max_x)
+    y = min(max(home_y + oy * h * ty, 0.0), max_y)
     return x, y, w, h
 
 

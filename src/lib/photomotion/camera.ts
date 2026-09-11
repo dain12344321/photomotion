@@ -1,4 +1,10 @@
 import {
+  FRAME_TRAVEL_X,
+  FRAME_TRAVEL_X_1X1,
+  FRAME_TRAVEL_X_9X16,
+  FRAME_TRAVEL_Y,
+  FRAME_TRAVEL_Y_1X1,
+  FRAME_TRAVEL_Y_9X16,
   HOLD_IN,
   HOLD_OUT,
   KB_PLATE_H,
@@ -167,6 +173,12 @@ function motionOffset(
   return { z0: 1, z1: STATIC_ZOOM, ox: 0, oy: 0 };
 }
 
+function travelForRatio(ratio: number): { tx: number; ty: number } {
+  if (ratio <= 9 / 16 + 0.02) return { tx: FRAME_TRAVEL_X_9X16, ty: FRAME_TRAVEL_Y_9X16 };
+  if (ratio <= 1.05) return { tx: FRAME_TRAVEL_X_1X1, ty: FRAME_TRAVEL_Y_1X1 };
+  return { tx: FRAME_TRAVEL_X, ty: FRAME_TRAVEL_Y };
+}
+
 function applyWindow(
   z0: number,
   z1: number,
@@ -184,8 +196,13 @@ function applyWindow(
   const h = base.h / z;
   const maxX = Math.max(0, plateW - w);
   const maxY = Math.max(0, plateH - h);
-  const x = clamp(maxX * clamp(focal.x + ox, 0, 1), 0, maxX);
-  const y = clamp(maxY * clamp(focal.y + oy, 0, 1), 0, maxY);
+  const { tx, ty } = travelForRatio(ratio);
+  // Home on the focal. Travel is a fraction of the *visible frame* so a
+  // landscape still cannot whip-pan a 9:16 slice across the whole facade.
+  const homeX = maxX * clamp(focal.x, 0, 1);
+  const homeY = maxY * clamp(focal.y, 0, 1);
+  const x = clamp(homeX + ox * w * tx, 0, maxX);
+  const y = clamp(homeY + oy * h * ty, 0, maxY);
   return { x, y, w, h };
 }
 

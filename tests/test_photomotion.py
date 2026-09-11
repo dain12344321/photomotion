@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from photomotion.constants import ALLOWED_MOTIONS, HARD_SPEND_CAP, KB_PLATE_H, KB_PLATE_W, ORBIT_ZOOM, PUSH_ZOOM, STATIC_ZOOM
+from photomotion.constants import ALLOWED_MOTIONS, HARD_SPEND_CAP, HOLD_IN, HOLD_OUT, KB_PLATE_H, KB_PLATE_W, ORBIT_ZOOM, PUSH_ZOOM, RAMP_ACCEL, RAMP_DECEL, STATIC_ZOOM
 from photomotion.ingest import ingest, originals_untouched, sha256_file
 from photomotion.i2v import generate_or_fallback
 from photomotion.job import select_hero_indexes
@@ -190,8 +190,25 @@ class KenBurnsPathTests(unittest.TestCase):
         self.assertAlmostEqual(w / h, 9 / 16, places=2)
         self.assertGreaterEqual(y, -1e-6)
         self.assertLessEqual(y + h, img_h + 1e-6)
-        self.assertGreater(abs(end[0] - start[0]), 200)
+        self.assertGreater(abs(end[0] - start[0]), 40)
+        self.assertLess(abs(end[0] - start[0]), start[2] * 0.22)
         self.assertGreater(h, img_h * 0.7)
+
+    def test_speed_ramp_into_downbeat(self):
+        self.assertGreater(RAMP_DECEL, RAMP_ACCEL)
+        self.assertGreater(RAMP_ACCEL + RAMP_DECEL, 0.6)
+        self.assertEqual(speed_ramp(0.0), 0.0)
+        self.assertEqual(speed_ramp(1.0), 1.0)
+        self.assertEqual(ramp_velocity(0.0), 0.0)
+        self.assertEqual(ramp_velocity(1.0), 0.0)
+        self.assertEqual(ramp_velocity(HOLD_IN), 0.0)
+        self.assertEqual(ramp_velocity(1.0 - HOLD_OUT), 0.0)
+        v_rise = ramp_velocity(HOLD_IN + 0.12)
+        v_mid = ramp_velocity(0.4)
+        v_fall = ramp_velocity(0.75)
+        self.assertGreater(v_mid, v_rise)
+        self.assertGreater(v_mid, v_fall)
+        self.assertGreater(v_fall, 0.0)
 
     def test_pull_out_zooms_out(self):
         pull = camera_path("pull_out", 60, yaw=1)
