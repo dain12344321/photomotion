@@ -1,0 +1,26 @@
+[project]
+name = "photomotion"
+version = "0.3.0"
+description = "Lakeshore Listing Media PhotoMotion™ — listing stills to a ~30s music-synced tour"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT AND CC-BY-3.0" }
+authors = [{ name = "Lakeshore Listing Media" }]
+dependencies = [
+  "numpy>=1.26",
+  "pillow>=10",
+]
+
+[project.scripts]
+photomotion = "photomotion.cli:main"
+
+[project.optional-dependencies]
+dev = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["photomotion*"]

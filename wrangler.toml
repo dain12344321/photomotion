@@ -1,0 +1,11 @@
+# Cloudflare Pages note — this desk is a browser Ken Burns player.
+# 1080p Lanczos MP4 encoding is the Python CLI (ffmpeg on a Mac/Linux box).
+# Workers cannot encode the master. Connect the GitHub repo to Pages only for
+# the operator SPA; keep `python3 -m photomotion` on the desktop.
+#
+# name = "photomotion"
+# compatibility_date = "2026-09-11"
+# pages_build_output_dir = "dist/client"
+
+name = "photomotion"
+compatibility_date = "2026-09-11"

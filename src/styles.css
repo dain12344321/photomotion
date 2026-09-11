@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #12161a;
+  --color-surface: #1a2128;
+  --color-elevated: #222a32;
+  --color-fg: #efece6;
+  --color-ink: #0d1013;
+  --color-muted: #9aa3ab;
+  --color-subtle: #6d767e;
+  --color-inverse: #efece6;
+  --color-accent: #c43c3c;
+  --color-accent-fg: #fff7f5;
+  --color-accent-hover: #a83232;
+  --color-lake: #7aa2c4;
+  --color-brand: #7aa2c4;
+  --color-brand-subtle: #1c2833;
+  --color-border: #2a333c;
+  --color-ring: #7aa2c4;
+  --color-ok: #7aa671;
+  --color-warn: #c43c3c;
+
+  --font-display: "Fraunces", "Times New Roman", serif;
+  --font-sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  --tracking-wider: 0.12em;
+  --tracking-widest: 0.18em;
+  --tracking-display: -0.03em;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-quick: 150ms;
+  --motion-fast: 250ms;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.32);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+  input[type="checkbox"],
+  input[type="range"] {
+    accent-color: var(--color-lake);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-display);
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  .label-kicker {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: var(--tracking-widest);
+    text-transform: uppercase;
+    color: var(--color-lake);
+  }
+  .field {
+    display: block;
+    height: 2.75rem;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-ink);
+    padding-inline: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    outline: none;
+  }
+  .field:focus {
+    box-shadow: 0 0 0 2px var(--color-ring);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,56 @@
+# deps / build
+node_modules/
+.output/
+.vinxi/
+dist/
+.nitro/
+.tanstack/
+.cache/
+.vercel/
+*.tsbuildinfo
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# jobs, secrets, local operator state
+data/jobs/
+public/jobs/
+.env
+.env.*
+!.env.example
+*.pem
+.photomotion/
+credentials.json
+PHOTOMOTION_HOME/
+
+# generated desktop kit (rebuild with python3 scripts/pack-desktop.py)
+public/downloads/*.zip
+!public/downloads/.gitkeep
+
+# generated / local
+screenshots/
+artifacts/
+*.log
+/tmp/
+
+# os
+.DS_Store
+Thumbs.db
+
+# grok builder platform (not the product)
+.grok/skills/
+.grok/references/
+.grok/status
+.grok/og-pending
+.grok/favicon-*.png
+.grok/*.pid
+.grok/*.log
+.node_modules.lock
+.project_id
