@@ -1,5 +1,7 @@
 export type MotionName = "push_in" | "orbit" | "pull_out" | "ken_burns" | "static";
 
+export type FrameAspect = "16x9" | "9x16" | "1x1";
+
 export type RoomName =
   | "exterior_front"
   | "exterior"

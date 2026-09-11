@@ -10,7 +10,7 @@ import {
   PUSH_ZOOM,
   STATIC_ZOOM,
 } from "./constants.ts";
-import { cameraPath, cameraWindowAt, rampVelocity, shapedEase, speedRamp } from "./camera.ts";
+import { cameraPath, cameraSourceWindow, cameraWindowAt, rampVelocity, shapedEase, speedRamp } from "./camera.ts";
 import { detectBeatsFromPcm, snapClipDurations } from "./beats.ts";
 import { classifyItems, WANATAH_OVERRIDE } from "./classify.ts";
 import { assembleTour, classifiedFromListing } from "./tour.ts";
@@ -88,7 +88,8 @@ describe("camera path", () => {
     assert.ok(push[0].w > push[push.length - 1].w);
     assert.ok(PUSH_ZOOM > ORBIT_ZOOM);
     assert.ok(ORBIT_ZOOM > STATIC_ZOOM);
-    assert.ok(PUSH_ZOOM >= 1.15);
+    assert.ok(PUSH_ZOOM >= 1.35);
+    assert.ok(ORBIT_ZOOM >= 1.28);
   });
   it("pull_out zooms out", () => {
     const pull = cameraPath("pull_out", 60, 1);
@@ -125,6 +126,26 @@ describe("camera path", () => {
     assert.equal(path[0].w, a.w);
     assert.equal(path[1].w, b.w);
   });
+  it("9:16 is a real vertical slice, not letterboxed 16:9", () => {
+    const imgW = 4000;
+    const imgH = 2667;
+    const start = cameraSourceWindow("orbit", 0, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "9x16");
+    const mid = cameraSourceWindow("orbit", 0.5, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "9x16");
+    const end = cameraSourceWindow("orbit", 1, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "9x16");
+    const ratio = (w: { w: number; h: number }) => w.w / w.h;
+    assert.ok(Math.abs(ratio(start) - 9 / 16) < 0.01);
+    assert.ok(Math.abs(ratio(mid) - 9 / 16) < 0.01);
+    assert.ok(start.y >= -1e-6);
+    assert.ok(start.y + start.h <= imgH + 1e-6);
+    assert.ok(start.x >= -1e-6);
+    assert.ok(start.x + start.w <= imgW + 1e-6);
+    // Landscape leftover: the 9:16 slice trucks across the still.
+    assert.ok(Math.abs(end.x - start.x) > 200);
+    // At the wide end it uses nearly the full still height.
+    assert.ok(start.h > imgH * 0.7);
+    const wide = cameraSourceWindow("push_in", 0, 1, { x: 0.5, y: 0.46 }, imgW, imgH, "16x9");
+    assert.ok(Math.abs(wide.w / wide.h - 16 / 9) < 0.01);
+  });
 });
 
 describe("beats", () => {
@@ -157,8 +178,13 @@ describe("beats", () => {
     const grid = detectBeatsFromPcm(pcm, sr, { introS: 0.4 });
     assert.ok(grid.bpm > 70 && grid.bpm < 130);
     assert.ok(Math.abs(grid.bpm - 96) < 8 || Math.abs(grid.bpm - 48) < 8);
+    assert.ok(Math.abs(grid.phase - phase) < 0.08, `phase ${grid.phase} should lock to onset ${phase}, not intro 0.4`);
     const snaps = snapClipDurations(8, grid, 30);
     for (const s of snaps) assert.equal(s.beats % 4, 0);
+    for (const s of snaps) {
+      const err = Math.abs((s.music_time - grid.phase) / grid.beat_interval / 4 - Math.round((s.music_time - grid.phase) / grid.beat_interval / 4));
+      assert.ok(err < 1e-6);
+    }
   });
   it("uses tagged bpm when provided", () => {
     const sr = 22050;

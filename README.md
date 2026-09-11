@@ -53,7 +53,7 @@ python3 -m photomotion run \
 Deliverables in `jobs/<property>/DELIVER/`:
 
 - `master_16x9_clean.mp4`
-- `vertical_9x16_clean.mp4` (blur-fill from 16:9)
+- `vertical_9x16_clean.mp4` (full-bleed 9:16 crop, not letterboxed)
 - `square_1x1_clean.mp4`
 - `plan.json` / `cut_list.json`
 

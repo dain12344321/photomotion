@@ -60,23 +60,29 @@ export const VERTICAL_H = 1920;
 export const SQUARE = 1080;
 
 /** Visible cinema dolly / truck / reveal, still entirely inside the still. */
-export const PUSH_ZOOM = 1.24;
-export const ORBIT_ZOOM = 1.16;
-export const ORBIT_Z0 = 1.08;
-export const ORBIT_TRAVEL = 0.4;
-export const ORBIT_ARC = 0.14;
-export const KEN_BURNS_ZOOM = 1.11;
-export const KEN_BURNS_DRIFT_X = 0.22;
-export const KEN_BURNS_DRIFT_Y = 0.08;
-export const STATIC_ZOOM = 1.014;
-/** Holds cover a ~0.16s dissolve without reading as a slideshow. */
-export const HOLD_IN = 0.055;
-export const HOLD_OUT = 0.09;
+export const PUSH_ZOOM = 1.42;
+export const PUSH_DRIFT_X = 0.16;
+export const PUSH_DRIFT_Y = -0.09;
+export const ORBIT_ZOOM = 1.34;
+export const ORBIT_Z0 = 1.16;
+export const ORBIT_TRAVEL = 0.58;
+export const ORBIT_ARC = 0.24;
+export const KEN_BURNS_ZOOM = 1.26;
+export const KEN_BURNS_DRIFT_X = 0.46;
+export const KEN_BURNS_DRIFT_Y = 0.18;
+export const STATIC_ZOOM = 1.02;
+/** Short settle, then move — motion in the first half-second. */
+export const HOLD_IN = 0.025;
+/** Decel into the downbeat so the cut is the accent. */
+export const HOLD_OUT = 0.07;
 /** Trapezoid speed-ramp as a fraction of the moving window. v=0 at both ends. */
-export const RAMP_ACCEL = 0.22;
-export const RAMP_DECEL = 0.28;
-/** Optical dissolve around the beat cut, inside the holds. Does not steal duration. */
-export const XFADE_S = 0.16;
+export const RAMP_ACCEL = 0.16;
+export const RAMP_DECEL = 0.34;
+/**
+ * Optical mix centered on the beat (~2 frames either side).
+ * Hard content change lands on the downbeat — not a 160ms pre-roll dissolve.
+ */
+export const XFADE_S = 0.067;
 export const KB_PLATE_W = 3840;
 export const KB_PLATE_H = 2160;
 

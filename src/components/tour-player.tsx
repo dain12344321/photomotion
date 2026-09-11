@@ -1,11 +1,11 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { Play } from "lucide-react";
-import { cameraWindowAt, windowOnImage } from "@/lib/photomotion/camera";
+import { cameraSourceWindow, cosineEase } from "@/lib/photomotion/camera";
 import { HOLD_IN, HOLD_OUT, XFADE_S } from "@/lib/photomotion/constants";
-import type { PlannedClip, TourPlan } from "@/lib/photomotion/types";
+import type { FrameAspect, PlannedClip, TourPlan } from "@/lib/photomotion/types";
 import { cn } from "@/lib/utils";
 
-export type Aspect = "16x9" | "9x16" | "1x1";
+export type Aspect = FrameAspect;
 
 type Props = {
   plan: TourPlan | null;
@@ -49,25 +49,28 @@ function drawAddress(
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  const grad = ctx.createLinearGradient(0, h - 160, 0, h);
+  const s = Math.min(w / 720, h / 1280) * (w < h ? 1.15 : 1.6);
+  const pad = 28 * s;
+  const barW = 22 * s;
+  const grad = ctx.createLinearGradient(0, h - 140 * s, 0, h);
   grad.addColorStop(0, "rgba(13,16,19,0)");
   grad.addColorStop(1, "rgba(13,16,19,0.72)");
   ctx.fillStyle = grad;
-  ctx.fillRect(0, h - 180, w, 180);
+  ctx.fillRect(0, h - 160 * s, w, 160 * s);
   ctx.fillStyle = "#7aa2c4";
-  ctx.fillRect(36, h - 92, 28, 2);
+  ctx.fillRect(pad, h - 78 * s, barW, 2 * s);
   ctx.fillStyle = "#efece6";
-  ctx.font = "600 28px Montserrat, sans-serif";
-  ctx.fillText(address, 36, h - 54);
+  ctx.font = `600 ${Math.round(22 * s)}px Montserrat, sans-serif`;
+  ctx.fillText(address, pad, h - 48 * s);
   if (city) {
     ctx.fillStyle = "rgba(239,236,230,0.75)";
-    ctx.font = "500 14px Montserrat, sans-serif";
-    ctx.fillText(city, 36, h - 30);
+    ctx.font = `500 ${Math.round(12 * s)}px Montserrat, sans-serif`;
+    ctx.fillText(city, pad, h - 28 * s);
   }
   ctx.restore();
 }
 
-function drawKenBurns(
+function drawClip(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   clip: PlannedClip,
@@ -75,42 +78,22 @@ function drawKenBurns(
   cw: number,
   ch: number,
   aspect: Aspect,
-  clear = true,
+  clear: boolean,
 ) {
-  const win = cameraWindowAt(clip.motion, local, clip.yaw, clip.focal);
-  const src = windowOnImage(win, img.naturalWidth, img.naturalHeight, clip.focal);
-
-  const draw16 = (dw: number, dh: number, dx: number, dy: number) => {
-    ctx.drawImage(img, src.x, src.y, src.w, src.h, dx, dy, dw, dh);
-  };
-
+  const src = cameraSourceWindow(
+    clip.motion,
+    local,
+    clip.yaw,
+    clip.focal,
+    img.naturalWidth,
+    img.naturalHeight,
+    aspect,
+  );
   if (clear) {
     ctx.fillStyle = "#0d1013";
     ctx.fillRect(0, 0, cw, ch);
   }
-
-  if (aspect === "9x16") {
-    ctx.save();
-    ctx.filter = "blur(22px)";
-    ctx.globalAlpha = ctx.globalAlpha * 0.55;
-    const coverH = cw / (16 / 9);
-    draw16(cw, coverH, 0, (ch - coverH) / 2);
-    ctx.restore();
-    const fitW = cw;
-    const fitH = fitW / (16 / 9);
-    draw16(fitW, fitH, 0, (ch - fitH) / 2);
-    return;
-  }
-  if (aspect === "1x1") {
-    const side = Math.min(cw, ch);
-    const dx = (cw - side) / 2;
-    const dy = (ch - side) / 2;
-    const crop = src.h;
-    const sx = src.x + (src.w - crop) / 2;
-    ctx.drawImage(img, sx, src.y, crop, crop, dx, dy, side, side);
-    return;
-  }
-  draw16(cw, ch, 0, 0);
+  ctx.drawImage(img, src.x, src.y, src.w, src.h, 0, 0, cw, ch);
 }
 
 export function TourPlayer({
@@ -171,20 +154,32 @@ export function TourPlayer({
         if (img) {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
-          drawKenBurns(ctx, img, hit.clip, hit.local, w, h, aspect, true);
           const dur = hit.clip.duration_s ?? 2.5;
-          const remaining = dur * (1 - hit.local);
+          const elapsed = hit.local * dur;
+          const remaining = dur - elapsed;
+          const prev = plan.clips[hit.clip.index - 1];
           const next = plan.clips[hit.clip.index + 1];
-          if (next) {
-            const nextImg = images.get(next.filename);
-            const nextDur = next.duration_s ?? 2.5;
-            const xfade = Math.min(XFADE_S, dur * HOLD_OUT, nextDur * HOLD_IN);
-            if (nextImg && xfade > 0.02 && remaining < xfade) {
-              const mix = (1 - Math.cos(Math.PI * (1 - remaining / xfade))) / 2;
-              const nextLocal = (xfade - remaining) / nextDur;
+          const prevImg = prev ? images.get(prev.filename) : undefined;
+          const nextImg = next ? images.get(next.filename) : undefined;
+          const prevDur = prev?.duration_s ?? 2.5;
+          const nextDur = next?.duration_s ?? 2.5;
+          const xfade = Math.min(XFADE_S, dur * HOLD_OUT, (prev ? prevDur : dur) * HOLD_OUT, nextDur * HOLD_IN * 2);
+          const half = xfade / 2;
+          const nearStart = Boolean(prev && prevImg && elapsed < half && xfade > 0.02);
+          const nearEnd = Boolean(next && nextImg && remaining < half && xfade > 0.02);
+
+          if (nearStart && prev && prevImg) {
+            drawClip(ctx, prevImg, prev, 1, w, h, aspect, true);
+            ctx.save();
+            ctx.globalAlpha = cosineEase((elapsed + half) / xfade);
+            drawClip(ctx, img, hit.clip, hit.local, w, h, aspect, false);
+            ctx.restore();
+          } else {
+            drawClip(ctx, img, hit.clip, hit.local, w, h, aspect, true);
+            if (nearEnd && next && nextImg) {
               ctx.save();
-              ctx.globalAlpha = mix;
-              drawKenBurns(ctx, nextImg, next, nextLocal, w, h, aspect, false);
+              ctx.globalAlpha = cosineEase((half - remaining) / xfade);
+              drawClip(ctx, nextImg, next, 0, w, h, aspect, false);
               ctx.restore();
             }
           }
@@ -207,7 +202,7 @@ export function TourPlayer({
     <div
       className={cn(
         "relative min-w-0 overflow-hidden rounded-[var(--radius-lg)] bg-ink shadow-[var(--shadow-md)]",
-        aspect === "9x16" && "mx-auto max-w-[280px]",
+        aspect === "9x16" && "mx-auto w-full max-w-[22rem]",
         aspect === "1x1" && "mx-auto max-w-[520px]",
       )}
     >

@@ -10,13 +10,15 @@ import {
   ORBIT_TRAVEL,
   ORBIT_Z0,
   ORBIT_ZOOM,
+  PUSH_DRIFT_X,
+  PUSH_DRIFT_Y,
   PUSH_ZOOM,
   RAMP_ACCEL,
   RAMP_DECEL,
   STATIC_ZOOM,
 } from "./constants.ts";
 import { assertAllowed } from "./motion.ts";
-import type { CropWindow, Focal, MotionName } from "./types.ts";
+import type { CropWindow, Focal, FrameAspect, MotionName } from "./types.ts";
 
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
@@ -25,6 +27,12 @@ export function clamp(v: number, lo: number, hi: number): number {
 export function cosineEase(t: number): number {
   const x = clamp(t, 0, 1);
   return (1 - Math.cos(Math.PI * x)) / 2;
+}
+
+export function aspectRatio(aspect: FrameAspect): number {
+  if (aspect === "9x16") return 9 / 16;
+  if (aspect === "1x1") return 1;
+  return 16 / 9;
 }
 
 function rampPeak(): number {
@@ -77,24 +85,34 @@ export function shapedEase(t: number): number {
   return speedRamp(t);
 }
 
-export function largest16x9(width: number, height: number): CropWindow {
-  const target = 16 / 9;
+/** Largest window of the given aspect (width/height) that fits inside the image. */
+export function largestAspect(width: number, height: number, ratio: number): CropWindow {
   const src = width / height;
   let x: number;
   let y: number;
   let w: number;
   let h: number;
-  if (src >= target) {
+  if (src >= ratio) {
     h = height;
-    w = Math.round(h * target);
-    x = Math.floor((width - w) / 2);
+    w = h * ratio;
+    x = (width - w) / 2;
     y = 0;
   } else {
     w = width;
-    h = Math.round(w / target);
+    h = w / ratio;
     x = 0;
-    y = Math.floor((height - h) / 2);
+    y = (height - h) / 2;
   }
+  return { x, y, w, h };
+}
+
+export function largest16x9(width: number, height: number): CropWindow {
+  const win = largestAspect(width, height, 16 / 9);
+  let { x, y, w, h } = win;
+  x = Math.floor(x);
+  y = Math.floor(y);
+  w = Math.round(w);
+  h = Math.round(h);
   w -= w % 2;
   h -= h % 2;
   return { x, y, w, h };
@@ -122,8 +140,22 @@ function motionOffset(
       oy: Math.sin(e * Math.PI) * ORBIT_ARC * sign,
     };
   }
-  if (motion === "push_in") return { z0: 1, z1: PUSH_ZOOM, ox: 0, oy: 0 };
-  if (motion === "pull_out") return { z0: PUSH_ZOOM, z1: 1, ox: 0, oy: 0 };
+  if (motion === "push_in") {
+    return {
+      z0: 1,
+      z1: PUSH_ZOOM,
+      ox: e * PUSH_DRIFT_X * sign,
+      oy: e * PUSH_DRIFT_Y * sign,
+    };
+  }
+  if (motion === "pull_out") {
+    return {
+      z0: PUSH_ZOOM,
+      z1: 1,
+      ox: (1 - e) * PUSH_DRIFT_X * sign,
+      oy: (1 - e) * PUSH_DRIFT_Y * sign,
+    };
+  }
   if (motion === "ken_burns") {
     return {
       z0: 1,
@@ -135,7 +167,29 @@ function motionOffset(
   return { z0: 1, z1: STATIC_ZOOM, ox: 0, oy: 0 };
 }
 
-/** Crop window on the 4K plate at local progress t∈[0,1]. Always in-frame. */
+function applyWindow(
+  z0: number,
+  z1: number,
+  ox: number,
+  oy: number,
+  e: number,
+  focal: Focal,
+  plateW: number,
+  plateH: number,
+  ratio: number,
+): CropWindow {
+  const z = z0 + (z1 - z0) * e;
+  const base = largestAspect(plateW, plateH, ratio);
+  const w = base.w / z;
+  const h = base.h / z;
+  const maxX = Math.max(0, plateW - w);
+  const maxY = Math.max(0, plateH - h);
+  const x = clamp(maxX * clamp(focal.x + ox, 0, 1), 0, maxX);
+  const y = clamp(maxY * clamp(focal.y + oy, 0, 1), 0, maxY);
+  return { x, y, w, h };
+}
+
+/** Crop window on the 4K 16:9 plate at local progress t∈[0,1]. Always in-frame. */
 export function cameraWindowAt(
   motion: string,
   t01: number,
@@ -146,19 +200,28 @@ export function cameraWindowAt(
   const e = speedRamp(t01);
   const sign = yaw >= 0 ? 1 : -1;
   const { z0, z1, ox, oy } = motionOffset(m, e, sign);
-  const z = z0 + (z1 - z0) * e;
-  const w = KB_PLATE_W / z;
-  const h = KB_PLATE_H / z;
-  const maxX = KB_PLATE_W - w;
-  const maxY = KB_PLATE_H - h;
-  // leftover * (focal + offset/2). Offsets are sized so a focal in [0.28, 0.72] never clamps.
-  let x = maxX * (focal.x + ox * 0.5);
-  let y = maxY * (focal.y + oy * 0.5);
-  x = clamp(x, 0, Math.max(0, maxX));
-  y = clamp(y, 0, Math.max(0, maxY));
-  if (x + w > KB_PLATE_W) x = KB_PLATE_W - w;
-  if (y + h > KB_PLATE_H) y = KB_PLATE_H - h;
-  return { x, y, w, h };
+  return applyWindow(z0, z1, ox, oy, e, focal, KB_PLATE_W, KB_PLATE_H, 16 / 9);
+}
+
+/**
+ * Full-bleed crop in SOURCE pixels for the output aspect.
+ * 9:16 uses a real vertical slice of the still (not a letterboxed 16:9).
+ * Extra landscape width becomes leftover for orbit / truck.
+ */
+export function cameraSourceWindow(
+  motion: string,
+  t01: number,
+  yaw: number,
+  focal: Focal,
+  imgW: number,
+  imgH: number,
+  aspect: FrameAspect,
+): CropWindow {
+  const m = assertAllowed(motion);
+  const e = speedRamp(t01);
+  const sign = yaw >= 0 ? 1 : -1;
+  const { z0, z1, ox, oy } = motionOffset(m, e, sign);
+  return applyWindow(z0, z1, ox, oy, e, focal, imgW, imgH, aspectRatio(aspect));
 }
 
 export function cameraPath(
@@ -175,7 +238,7 @@ export function cameraPath(
   return out;
 }
 
-/** Map a plate window onto source-image pixels (the 16:9 plate inside the still). */
+/** Map a 16:9 plate window onto source-image pixels. */
 export function windowOnImage(win: CropWindow, imgW: number, imgH: number, focal: Focal = { x: 0.5, y: 0.46 }): CropWindow {
   const plate = plateRect(imgW, imgH, focal);
   return {

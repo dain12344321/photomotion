@@ -23,6 +23,8 @@ from photomotion.constants import (
     ORBIT_TRAVEL,
     ORBIT_Z0,
     ORBIT_ZOOM,
+    PUSH_DRIFT_X,
+    PUSH_DRIFT_Y,
     PUSH_ZOOM,
     RAMP_ACCEL,
     RAMP_DECEL,
@@ -31,23 +33,30 @@ from photomotion.constants import (
 from photomotion.motion import assert_allowed
 
 
+def largest_aspect(width: int, height: int, ratio: float) -> tuple[float, float, float, float]:
+    """Largest window of the given aspect (w/h) inside the image."""
+    src_ratio = width / height if height else ratio
+    if src_ratio >= ratio:
+        h = float(height)
+        w = h * ratio
+        x = (width - w) / 2.0
+        y = 0.0
+    else:
+        w = float(width)
+        h = w / ratio
+        x = 0.0
+        y = (height - h) / 2.0
+    return x, y, w, h
+
+
 def largest_16x9(width: int, height: int) -> tuple[int, int, int, int]:
     """Return (x, y, w, h) of the largest 16:9 window inside the still."""
-    target_ratio = 16 / 9
-    src_ratio = width / height
-    if src_ratio >= target_ratio:
-        h = height
-        w = int(round(h * target_ratio))
-        x = (width - w) // 2
-        y = 0
-    else:
-        w = width
-        h = int(round(w / target_ratio))
-        x = 0
-        y = (height - h) // 2
-    w -= w % 2
-    h -= h % 2
-    return x, y, w, h
+    x, y, w, h = largest_aspect(width, height, 16 / 9)
+    xi, yi = int(x), int(y)
+    wi, hi = int(round(w)), int(round(h))
+    wi -= wi % 2
+    hi -= hi % 2
+    return xi, yi, wi, hi
 
 
 def crop_16x9_jpeg(src: Path, dest: Path, focal: tuple[float, float] = (0.5, 0.46)) -> Path:
@@ -120,6 +129,42 @@ def shaped_ease(t: float) -> float:
     return speed_ramp(t)
 
 
+def _motion_offset(motion: str, e: float, sign: int) -> tuple[float, float, float, float]:
+    if motion == "orbit":
+        theta = (e - 0.5) * 2.0
+        return ORBIT_Z0, ORBIT_ZOOM, theta * ORBIT_TRAVEL * sign, math.sin(e * math.pi) * ORBIT_ARC * sign
+    if motion == "push_in":
+        return 1.0, PUSH_ZOOM, e * PUSH_DRIFT_X * sign, e * PUSH_DRIFT_Y * sign
+    if motion == "pull_out":
+        return PUSH_ZOOM, 1.0, (1.0 - e) * PUSH_DRIFT_X * sign, (1.0 - e) * PUSH_DRIFT_Y * sign
+    if motion == "ken_burns":
+        return 1.0, KEN_BURNS_ZOOM, e * KEN_BURNS_DRIFT_X * sign, e * KEN_BURNS_DRIFT_Y * sign
+    return 1.0, STATIC_ZOOM, 0.0, 0.0
+
+
+def _apply_window(
+    z0: float,
+    z1: float,
+    ox: float,
+    oy: float,
+    e: float,
+    focal: tuple[float, float],
+    plate_w: float,
+    plate_h: float,
+    ratio: float,
+) -> tuple[float, float, float, float]:
+    fx, fy = focal
+    z = z0 + (z1 - z0) * e
+    _bx, _by, base_w, base_h = largest_aspect(int(plate_w), int(plate_h), ratio)
+    w = base_w / z
+    h = base_h / z
+    max_x = max(0.0, plate_w - w)
+    max_y = max(0.0, plate_h - h)
+    x = min(max(max_x * min(max(fx + ox, 0.0), 1.0), 0.0), max_x)
+    y = min(max(max_y * min(max(fy + oy, 0.0), 1.0), 0.0), max_y)
+    return x, y, w, h
+
+
 def camera_window_at(
     motion: str,
     t01: float,
@@ -127,38 +172,28 @@ def camera_window_at(
     focal: tuple[float, float] = (0.5, 0.46),
 ) -> tuple[float, float, float, float]:
     motion = assert_allowed(motion)
-    fx, fy = focal
     sign = 1 if (yaw if yaw is not None else 1) >= 0 else -1
     e = speed_ramp(t01)
-    if motion == "orbit":
-        theta = (e - 0.5) * 2.0
-        z0, z1 = ORBIT_Z0, ORBIT_ZOOM
-        ox = theta * ORBIT_TRAVEL * sign
-        oy = math.sin(e * math.pi) * ORBIT_ARC * sign
-    elif motion == "push_in":
-        z0, z1, ox, oy = 1.0, PUSH_ZOOM, 0.0, 0.0
-    elif motion == "pull_out":
-        z0, z1, ox, oy = PUSH_ZOOM, 1.0, 0.0, 0.0
-    elif motion == "ken_burns":
-        z0, z1 = 1.0, KEN_BURNS_ZOOM
-        ox = e * KEN_BURNS_DRIFT_X * sign
-        oy = e * KEN_BURNS_DRIFT_Y * sign
-    else:
-        z0, z1, ox, oy = 1.0, STATIC_ZOOM, 0.0, 0.0
-    z = z0 + (z1 - z0) * e
-    w = KB_PLATE_W / z
-    h = KB_PLATE_H / z
-    max_x = KB_PLATE_W - w
-    max_y = KB_PLATE_H - h
-    x = max_x * (fx + ox * 0.5)
-    y = max_y * (fy + oy * 0.5)
-    x = min(max(x, 0.0), max(0.0, max_x))
-    y = min(max(y, 0.0), max(0.0, max_y))
-    if x + w > KB_PLATE_W:
-        x = KB_PLATE_W - w
-    if y + h > KB_PLATE_H:
-        y = KB_PLATE_H - h
-    return x, y, w, h
+    z0, z1, ox, oy = _motion_offset(motion, e, sign)
+    return _apply_window(z0, z1, ox, oy, e, focal, float(KB_PLATE_W), float(KB_PLATE_H), 16 / 9)
+
+
+def camera_source_window(
+    motion: str,
+    t01: float,
+    yaw: int | None,
+    focal: tuple[float, float],
+    img_w: int,
+    img_h: int,
+    aspect: str,
+) -> tuple[float, float, float, float]:
+    """Full-bleed crop in source pixels. 9:16 is a real vertical slice, not letterboxed 16:9."""
+    motion = assert_allowed(motion)
+    ratio = 9 / 16 if aspect == "9x16" else 1.0 if aspect == "1x1" else 16 / 9
+    sign = 1 if (yaw if yaw is not None else 1) >= 0 else -1
+    e = speed_ramp(t01)
+    z0, z1, ox, oy = _motion_offset(motion, e, sign)
+    return _apply_window(z0, z1, ox, oy, e, focal, float(img_w), float(img_h), ratio)
 
 
 def camera_path(

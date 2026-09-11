@@ -90,7 +90,7 @@ export function onsetEnvelope(
   const onset = new Float32Array(n);
   for (let i = 0; i < n; i++) onset[i] = highFlux[i] + 0.35 * lowFlux[i];
   const times = new Float32Array(n);
-  for (let i = 0; i < n; i++) times[i] = (i * hop) / sr;
+  for (let i = 0; i < n; i++) times[i] = (i * hop + win / 2) / sr;
   return { times, onset };
 }
 
@@ -143,9 +143,21 @@ function clampIndex(i: number, n: number): number {
   return Math.min(n - 1, Math.max(0, i));
 }
 
+function snapToOnsetPeak(times: Float32Array, onset: Float32Array, t: number, radius = 0.12): number {
+  let bestT = t;
+  let bestV = -1;
+  for (let i = 0; i < times.length; i++) {
+    if (times[i] < t - radius || times[i] > t + radius) continue;
+    if (onset[i] > bestV) {
+      bestV = onset[i];
+      bestT = times[i];
+    }
+  }
+  return bestT;
+}
+
 export function lockPhase(times: Float32Array, onset: Float32Array, bpm: number, introS: number): number {
   const interval = 60 / bpm;
-  const bar = interval * 4;
   const start = Math.max(introS, 0.2);
   const windowEnd = start + 6;
   const candidates: number[] = [];
@@ -189,11 +201,9 @@ export function lockPhase(times: Float32Array, onset: Float32Array, bpm: number,
   }
   scored.sort((a, b) => b.score - a.score);
   const best = scored[0]?.score ?? 0;
-  const early = scored.filter((s) => s.score >= 0.7 * best).map((s) => s.t);
-  const picked = early.length ? Math.min(...early) : (scored[0]?.t ?? start);
-  // Snap to the nearest bar after intro so cuts land on downbeats.
-  const barsFromZero = Math.round((picked - start) / bar);
-  return start + Math.max(0, barsFromZero) * bar || picked;
+  const near = scored.filter((s) => s.score >= 0.92 * best).map((s) => s.t);
+  const picked = near.length ? Math.min(...near) : (scored[0]?.t ?? start);
+  return snapToOnsetPeak(times, onset, picked);
 }
 
 export function detectBeatsFromPcm(

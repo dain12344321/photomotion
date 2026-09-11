@@ -89,7 +89,7 @@ def _onset_envelope(audio: np.ndarray, sr: int, hop: int = 512, win: int = 2048)
     low_flux = _positive_flux(_rms_envelope(low, hop, win))
     n = min(len(high_flux), len(low_flux))
     onset = high_flux[:n] + 0.35 * low_flux[:n]
-    times = np.arange(n) * hop / sr
+    times = (np.arange(n) * hop + win / 2.0) / sr
     return times, onset
 
 
@@ -136,8 +136,17 @@ def _lock_phase(times: np.ndarray, onset: np.ndarray, bpm: float, intro_s: float
         score -= float(t) * 0.01
         scored.append((score, float(t)))
     best = max(s for s, _ in scored)
-    early = [t for s, t in scored if s >= 0.7 * best]
-    return min(early) if early else scored[0][1]
+    near = [t for s, t in scored if s >= 0.92 * best]
+    picked = min(near) if near else scored[0][1]
+    return _snap_to_onset_peak(times, onset, picked)
+
+
+def _snap_to_onset_peak(times: np.ndarray, onset: np.ndarray, t: float, radius: float = 0.12) -> float:
+    mask = (times >= t - radius) & (times <= t + radius)
+    if not np.any(mask):
+        return float(t)
+    idx = int(np.argmax(np.where(mask, onset, -1.0)))
+    return float(times[idx])
 
 
 def detect_bpm_and_beats(

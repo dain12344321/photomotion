@@ -177,7 +177,21 @@ class KenBurnsPathTests(unittest.TestCase):
         self.assertGreater(push[0][2], push[-1][2])
         self.assertGreater(PUSH_ZOOM, ORBIT_ZOOM)
         self.assertGreater(ORBIT_ZOOM, STATIC_ZOOM)
-        self.assertGreaterEqual(PUSH_ZOOM, 1.15)
+        self.assertGreaterEqual(PUSH_ZOOM, 1.35)
+        self.assertGreaterEqual(ORBIT_ZOOM, 1.28)
+
+    def test_nine_sixteen_is_full_bleed_slice(self):
+        from photomotion.kenburns import camera_source_window
+
+        img_w, img_h = 4000, 2667
+        start = camera_source_window("orbit", 0.0, 1, (0.5, 0.46), img_w, img_h, "9x16")
+        end = camera_source_window("orbit", 1.0, 1, (0.5, 0.46), img_w, img_h, "9x16")
+        x, y, w, h = start
+        self.assertAlmostEqual(w / h, 9 / 16, places=2)
+        self.assertGreaterEqual(y, -1e-6)
+        self.assertLessEqual(y + h, img_h + 1e-6)
+        self.assertGreater(abs(end[0] - start[0]), 200)
+        self.assertGreater(h, img_h * 0.7)
 
     def test_pull_out_zooms_out(self):
         pull = camera_path("pull_out", 60, yaw=1)

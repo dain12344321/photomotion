@@ -181,13 +181,11 @@ def mux_music_and_overlays(
 
 
 def derive_vertical(master: Path, dest: Path) -> Path:
-    """9:16 blur-fill from 16:9. Never stretch."""
+    """Real 9:16 cover-crop from the 16:9 master. Full-bleed, no letterbox."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     vf = (
-        f"[0:v]scale={VERTICAL_W}:{VERTICAL_H}:force_original_aspect_ratio=increase,"
-        f"crop={VERTICAL_W}:{VERTICAL_H},boxblur=24:8[bg];"
-        f"[0:v]scale={VERTICAL_W}:{VERTICAL_H}:force_original_aspect_ratio=decrease[fg];"
-        f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p"
+        f"crop=2*trunc(ih*9/32):ih:(iw-2*trunc(ih*9/32))/2:0,"
+        f"scale={VERTICAL_W}:{VERTICAL_H}:flags=lanczos,setsar=1,format=yuv420p"
     )
     _run(
         [
@@ -195,7 +193,7 @@ def derive_vertical(master: Path, dest: Path) -> Path:
             "-y",
             "-i",
             str(master),
-            "-filter_complex",
+            "-vf",
             vf,
             "-c:v",
             "libx264",
